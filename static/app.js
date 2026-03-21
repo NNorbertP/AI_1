@@ -1,5 +1,5 @@
 /* ==========================================
-   SEO Cikk Generáló – Frontend logika v2
+   SEO Cikk Generáló – Frontend logika v4
    ========================================== */
 
 // Állapot
@@ -9,11 +9,15 @@ const state = {
   jobId: null,
   isGenerating: false,
   eventSource: null,
-  // Prompt szerkesztő állapot
-  promptEditing: { main: false, fix: false, fact_check: false },
-  promptVersions: { main: [], fix: [], fact_check: [] },
-  promptPreviewVersion: { main: null, fix: null, fact_check: null }
+  // Prompt szerkesztő állapot (tone_guide külön kezelt)
+  promptEditing: { main: false, fact_check: false, link_check: false, format_check: false, fix: false },
+  promptVersions: { main: [], fact_check: [], link_check: [], format_check: [], fix: [] },
+  promptPreviewVersion: { main: null, fact_check: null, link_check: null, format_check: null, fix: null },
+  toneGuideEditing: false
 };
+
+// Prompt nevek (verziókövetéssel)
+const VERSIONED_PROMPTS = ['main', 'fact_check', 'link_check', 'format_check', 'fix'];
 
 // Megjelenítendő oszlopok a táblázatban (szerkeszthető)
 const DISPLAY_COLUMNS = [
@@ -319,7 +323,7 @@ async function startGeneration() {
 
   // Kiválasztott modell
   const modelSelect = document.getElementById('modelSelect');
-  const selectedModel = modelSelect ? modelSelect.value : 'gpt-4.1-mini';
+  const selectedModel = modelSelect ? modelSelect.value : 'gpt-5.4-mini';
 
   const btn = document.getElementById('startGenerationBtn');
   btn.disabled = true;
@@ -495,14 +499,21 @@ async function loadPrompts() {
     const res = await fetch('/prompts');
     const data = await res.json();
 
-    ['main', 'fix', 'fact_check'].forEach(name => {
+    // Verziókövetett promptok
+    VERSIONED_PROMPTS.forEach(name => {
       const ta = document.getElementById(`prompt-${name}`);
       if (ta && data[name]) {
         ta.value = data[name];
       }
     });
 
-    // Verzióelőzmények betöltése minden prompthoz
+    // Tone guide (külön kezelt)
+    const tgTa = document.getElementById('prompt-tone_guide');
+    if (tgTa && data['tone_guide']) {
+      tgTa.value = data['tone_guide'];
+    }
+
+    // Verzióelőzmények betöltése
     await loadAllVersions();
 
   } catch (err) {
@@ -511,7 +522,7 @@ async function loadPrompts() {
 }
 
 async function loadAllVersions() {
-  for (const name of ['main', 'fix', 'fact_check']) {
+  for (const name of VERSIONED_PROMPTS) {
     await loadVersionsForPrompt(name);
   }
 }
@@ -545,7 +556,7 @@ function renderVersionSelect(promptName) {
 }
 
 // ==========================================
-// PROMPT SZERKESZTÉS
+// PROMPT SZERKESZTÉS (verziókövetett)
 // ==========================================
 function toggleEdit(promptName) {
   const ta = document.getElementById(`prompt-${promptName}`);
@@ -555,17 +566,13 @@ function toggleEdit(promptName) {
   const isEditing = state.promptEditing[promptName];
 
   if (!isEditing) {
-    // Szerkesztés bekapcsolása
     ta.removeAttribute('readonly');
     ta.focus();
     editBtn.textContent = '✕ Mégse';
     saveBtn.style.display = 'inline-flex';
     state.promptEditing[promptName] = true;
-
-    // Eredeti szöveg mentése visszavonáshoz
     ta.dataset.original = ta.value;
   } else {
-    // Szerkesztés megszakítása
     ta.setAttribute('readonly', true);
     ta.value = ta.dataset.original || ta.value;
     editBtn.textContent = '✏ Szerkesztés';
@@ -596,7 +603,6 @@ async function savePrompt(promptName) {
       return;
     }
 
-    // Szerkesztő bezárása
     const editBtn = document.getElementById(`edit-btn-${promptName}`);
     const saveBtn = document.getElementById(`save-btn-${promptName}`);
     ta.setAttribute('readonly', true);
@@ -604,10 +610,67 @@ async function savePrompt(promptName) {
     saveBtn.style.display = 'none';
     state.promptEditing[promptName] = false;
 
-    // Verzióelőzmények frissítése
     await loadVersionsForPrompt(promptName);
-
     showToast('Prompt sikeresen mentve', 'success');
+  } catch (err) {
+    showToast('Mentési hiba: ' + err.message, 'error');
+  }
+}
+
+// ==========================================
+// TONE GUIDE SZERKESZTÉS (nincs verziókövetés)
+// ==========================================
+function toggleToneGuideEdit() {
+  const ta = document.getElementById('prompt-tone_guide');
+  const editBtn = document.getElementById('edit-btn-tone_guide');
+  const saveBtn = document.getElementById('save-btn-tone_guide');
+
+  if (!state.toneGuideEditing) {
+    ta.removeAttribute('readonly');
+    ta.focus();
+    editBtn.textContent = '✕ Mégse';
+    saveBtn.style.display = 'inline-flex';
+    state.toneGuideEditing = true;
+    ta.dataset.original = ta.value;
+  } else {
+    ta.setAttribute('readonly', true);
+    ta.value = ta.dataset.original || ta.value;
+    editBtn.textContent = '✏ Szerkesztés';
+    saveBtn.style.display = 'none';
+    state.toneGuideEditing = false;
+  }
+}
+
+async function saveToneGuide() {
+  const ta = document.getElementById('prompt-tone_guide');
+  const newText = ta.value.trim();
+
+  if (!newText) {
+    showToast('A tone guide szövege nem lehet üres', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch('/prompts/tone_guide', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: newText })
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      showToast(data.error, 'error');
+      return;
+    }
+
+    const editBtn = document.getElementById('edit-btn-tone_guide');
+    const saveBtn = document.getElementById('save-btn-tone_guide');
+    ta.setAttribute('readonly', true);
+    editBtn.textContent = '✏ Szerkesztés';
+    saveBtn.style.display = 'none';
+    state.toneGuideEditing = false;
+
+    showToast('Tone guide sikeresen mentve', 'success');
   } catch (err) {
     showToast('Mentési hiba: ' + err.message, 'error');
   }
@@ -618,12 +681,9 @@ async function savePrompt(promptName) {
 // ==========================================
 function previewVersion(promptName, versionNumber) {
   if (!versionNumber) {
-    // Visszaállítás az aktuálisra
     const restoreBtn = document.getElementById(`restore-${promptName}`);
     if (restoreBtn) restoreBtn.style.display = 'none';
     state.promptPreviewVersion[promptName] = null;
-
-    // Aktuális szöveg visszaállítása
     loadCurrentPrompt(promptName);
     return;
   }
@@ -637,13 +697,11 @@ function previewVersion(promptName, versionNumber) {
   const ta = document.getElementById(`prompt-${promptName}`);
   if (ta) {
     ta.value = version.text;
-    // Ha szerkesztési módban volt, kilépünk
     if (state.promptEditing[promptName]) {
       toggleEdit(promptName);
     }
   }
 
-  // Visszaállítás gomb megjelenítése
   const restoreBtn = document.getElementById(`restore-${promptName}`);
   if (restoreBtn) restoreBtn.style.display = 'inline-flex';
 
@@ -676,17 +734,14 @@ async function restoreVersion(promptName) {
       return;
     }
 
-    // Visszaállítás gomb elrejtése
     const restoreBtn = document.getElementById(`restore-${promptName}`);
     if (restoreBtn) restoreBtn.style.display = 'none';
 
-    // Verzióválasztó visszaállítása
     const sel = document.getElementById(`versions-${promptName}`);
     if (sel) sel.value = '';
 
     state.promptPreviewVersion[promptName] = null;
 
-    // Frissítés
     await loadCurrentPrompt(promptName);
     await loadVersionsForPrompt(promptName);
 

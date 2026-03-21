@@ -1,0 +1,10 @@
+{
+  "current": "Ellenőrizd az alábbi magyar nyelvű cikket az alábbi szempontok szerint:\n\n1. Szerepelnek-e benne tiltott fordulatok? Tiltott: \"Az oldal szerint\", \"A leírás szerint\", \"Ez nem bénázás\", \"Tapasztalatból mondom\", \"ez nem csak\", \"talán\", \"nagyjából\", \"bizonyos értelemben\", \"felkiáltójel\"\n2. A mondatok megfelelően rövidek-e, van-e túl hosszú, nehezen érthető mondat?\n3. Megfelelő-e a bekezdésstruktúra (1-3 mondatos blokkok)?\n4. Van-e ## jelű H2 alcím a cikkben (legalább 2 kell)?\n\nVálaszolj így:\n- \"OK\" ha minden rendben\n- \"JAVÍTANDÓ: [pontos probléma leírása]\" ha van probléma\n\nCikk:\n{cikk_szovege}",
+  "versions": [
+    {
+      "version": 1,
+      "text": "Ellenőrizd az alábbi magyar nyelvű cikket az alábbi szempontok szerint:\n\n1. Szerepelnek-e benne tiltott fordulatok? Tiltott: \"Az oldal szerint\", \"A leírás szerint\", \"Ez nem bénázás\", \"Tapasztalatból mondom\", \"ez nem csak\", \"talán\", \"nagyjából\", \"bizonyos értelemben\", \"felkiáltójel\"\n2. A mondatok megfelelően rövidek-e, van-e túl hosszú, nehezen érthető mondat?\n3. Megfelelő-e a bekezdésstruktúra (1-3 mondatos blokkok)?\n4. Van-e ## jelű H2 alcím a cikkben (legalább 2 kell)?\n\nVálaszolj így:\n- \"OK\" ha minden rendben\n- \"JAVÍTANDÓ: [pontos probléma leírása]\" ha van probléma\n\nCikk:\n{cikk_szovege}",
+      "saved_at": "2026-03-21T19:54:40"
+    }
+  ]
+}

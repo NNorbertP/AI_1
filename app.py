@@ -56,7 +56,7 @@ AVAILABLE_MODELS = [
 ]
 DEFAULT_MODEL = "gpt-5.4-mini"
 
-# Tiltott fordulatok
+# Tiltott fordulatok (kód alapú ellenőrzés)
 FORBIDDEN_PHRASES = [
     "Az oldal szerint", "A leírás szerint", "Ez nem bénázás",
     "Tapasztalatból mondom", "ez nem csak", "talán", "nagyjából", "bizonyos értelemben"
@@ -64,6 +64,61 @@ FORBIDDEN_PHRASES = [
 
 # Állapotkezelés a generálásokhoz
 generation_jobs = {}
+
+# ==========================================
+# TONE GUIDE
+# ==========================================
+TONE_GUIDE_PATH = os.path.join('prompts', 'tone_guide.txt')
+
+DEFAULT_TONE_GUIDE = """1. Magas szintű áttekintés
+Általános stílusösszefoglaló
+Ez a stílus közérthető, pragmatikus, döntést segítő szakmai tartalomírás. Nem irodalmi, nem játékos, és nem is akadémikus: inkább olyan, mintha egy tapasztalt tanácsadó leülne melléd, és gyorsan rendet rakna a témában. A mondanivaló mindig lebontott, „megfogható", kézzelfogható szempontokra van osztva, ezért az olvasó ritkán marad absztrakt állításokkal egyedül. A forma végig azt sugallja: „itt most tisztázzuk a helyzetet, és kapsz egy biztonságos következő lépést."
+
+Szerzői persona (következtetve)
+A domináns persona: szakértő tanácsadó + türelmes magyarázó + finoman értékesítő konzultáns. A szerző nem haverkodik, és nem fölülről beszél: inkább „kompetens vezetőként" vagy „józan eligazítóként" szólal meg.
+
+Az írás elsődleges céljai
+Az elsődleges célok: tisztázni, bizonytalanságot csökkenteni, szakértői hitelességet építeni, majd óvatosan konverzióba terelni. A legtöbb cikk előbb oktat, aztán keretez, és csak utána ajánl szolgáltatást vagy következő lépést. Ezért a meggyőzés itt nem agresszív, hanem strukturális: a józan rendrakásból nő ki.
+
+2. Hang és tónus
+Hang
+A hang félformális, közvetlen, társalgóan szakmai. Nem laza, de nem merev. Gyakori a második személyű megszólítás ("neked", "nálad", "ha szeretnéd"), illetve a vállalati többes első személy ("bemutatjuk", "segítünk", "átnézzük"), ami egyszerre sugall szakértelmet és szolgáltatói jelenlétet.
+
+8. Stílusszabályok / Ellenőrzőlista
+Hangszabályok
+- Beszélj úgy, mint egy hozzáértő tanácsadó, ne úgy, mint egy reklámszövegíró, aki túl korán eladni akar.
+- Az első 2–4 mondatban nevezd meg az olvasó valós helyzetét vagy félreértését.
+- Használj közvetlen, de nem haverkodó megszólalást.
+- Mutass empátiát a problémára, de maradj rendezett és tárgyszerű.
+- Legyen a hangod magabiztos, de ne hangoskodó.
+- Inkább eligazíts, mint lenyűgözz.
+- A hitelességet konkrétumokkal építsd, ne önfényezéssel.
+- A CTA előtt adj valódi értéket és egyértelmű gondolati rendet.
+
+NE tedd
+- Ne írj hosszú, díszes, többszörösen alárendelt mondatokat.
+- Ne használj túl sok bizonytalanító puhaságot, mint a „talán", „nagyjából", „bizonyos értelemben".
+- Ne menj át teljesen sales-es hype-ba az első bekezdésekben.
+- Ne hagyd, hogy egy szakasz cím nélkül, tömbszövegként ömöljön rá az olvasóra.
+- Ne legyen ilyen stílusú mondat: „ez nem csak X, hanem Y"
+- Felkiáltójel szinte ne legyen."""
+
+def load_tone_guide():
+    """Betölti a tone guide szövegét a txt fájlból."""
+    if os.path.exists(TONE_GUIDE_PATH):
+        with open(TONE_GUIDE_PATH, 'r', encoding='utf-8') as f:
+            return f.read()
+    return DEFAULT_TONE_GUIDE
+
+def save_tone_guide(text):
+    """Elmenti a tone guide szövegét a txt fájlba."""
+    with open(TONE_GUIDE_PATH, 'w', encoding='utf-8') as f:
+        f.write(text)
+
+def init_tone_guide():
+    """Inicializálja a tone_guide.txt fájlt, ha nem létezik."""
+    if not os.path.exists(TONE_GUIDE_PATH):
+        save_tone_guide(DEFAULT_TONE_GUIDE)
 
 # ==========================================
 # PROMPT ALAPÉRTÉKEK
@@ -82,7 +137,6 @@ Helyezz el rajta linkeket az alábbi kulcsszavakról az adott oldalakra, összes
 Követelmények a cikkhez
 Nyelv: magyar
 Terjedelem: 600-1000 szó
-Stílus: közérthető, szakmai, bizalomépítő, gyakorlati példákkal.
 E-E-A-T: jelezd a szakértelmet (folyamat, módszer, tapasztalati jelek), kerüld a túlzó ígéreteket.
 Kimenet:
 Csak a teljes cikket add vissza.
@@ -102,18 +156,38 @@ Ne legyél túlságosan közvetlen.
 Ne használj ilyen szerkezetű mondatot: "ez nem csak X, hanem Y".
 Ne használj bizonytalanító szavakat döntéstámogató szövegben: talán, nagyjából, bizonyos értelemben.
 
-Stílus részletesen:
-- Hang: félformális, közvetlen, társalgóan szakmai. Nem laza, de nem merev.
-- Persona: szakértő tanácsadó + türelmes magyarázó. Kompetens vezető, józan eligazító.
-- Cél: tisztázni, bizonytalanságot csökkenteni, szakértői hitelességet építeni, majd óvatosan konverzióba terelni.
-- Szerkezet: helyzet/probléma → miért fontos → mikor/miért/hogyan bontás → gyakorlati szempontok → összegzés → finom szolgáltatói említés.
-- Nyitás: az olvasó aktuális bizonytalanságára csatlakozzon rá (hétköznapi helyzet + kérdés, vagy látszat vs valóság kontraszt).
-- Lezárás: összegzés + soft CTA ("ha szeretnéd", "érdemes megnézni").
-- Mondatok: rövid vagy közepes hosszú; átvezetők: Ezért, Vagyis, Például, Röviden, A lényeg.
-- Bekezdések: 1-3 mondatos blokkok, scan-first logika.
-- Alcímek: kérdés- vagy előnyközpontúak (Miért fontos…, Mikor érdemes…, Hogyan történik…).
-- Felkiáltójel: szinte ne legyen.
-- Hitelességet konkrétumokkal építsd, ne önfényezéssel.{megjegyzes_blokk}"""
+Stílus és hangnem útmutató:
+{tone_guide}{megjegyzes_blokk}"""
+
+DEFAULT_FACT_CHECK_PROMPT = """Az alábbi cikket ellenőrizd le: tartalmaz-e olyan konkrét állítást a cégről, amely nem ellenőrizhető a cég honlapjáról ({ceg_url}), vagy nyilvánvalóan kitalált/valótlan? Csak akkor jelezz problémát, ha egyértelmű kitalált állítás van. Válaszolj így: "OK" ha nincs probléma, vagy "JAVÍTANDÓ: [probléma rövid leírása]" ha van.
+
+Cikk:
+{cikk_szovege}"""
+
+DEFAULT_LINK_CHECK_PROMPT = """Ellenőrizd az alábbi cikket:
+1. Tartalmaz-e olyan linket, amelyben utm_ paraméter szerepel? Ha igen, jelöld meg pontosan melyik link és mi a probléma.
+2. Szerepelnek-e a cikkben a következő elvárt kulcsszavak/linkek: {elvart_linkek}? Ha valamelyik hiányzik, jelöld meg.
+
+Válaszolj így:
+- "OK" ha minden rendben
+- "JAVÍTANDÓ: [pontos probléma leírása]" ha van probléma
+
+Cikk:
+{cikk_szovege}"""
+
+DEFAULT_FORMAT_CHECK_PROMPT = """Ellenőrizd az alábbi magyar nyelvű cikket az alábbi szempontok szerint:
+
+1. Szerepelnek-e benne tiltott fordulatok? Tiltott: "Az oldal szerint", "A leírás szerint", "Ez nem bénázás", "Tapasztalatból mondom", "ez nem csak", "talán", "nagyjából", "bizonyos értelemben", "felkiáltójel"
+2. A mondatok megfelelően rövidek-e, van-e túl hosszú, nehezen érthető mondat?
+3. Megfelelő-e a bekezdésstruktúra (1-3 mondatos blokkok)?
+4. Van-e ## jelű H2 alcím a cikkben (legalább 2 kell)?
+
+Válaszolj így:
+- "OK" ha minden rendben
+- "JAVÍTANDÓ: [pontos probléma leírása]" ha van probléma
+
+Cikk:
+{cikk_szovege}"""
 
 DEFAULT_FIX_PROMPT = """Az alábbi cikket kérlek javítsd ki a megjelölt problémák alapján. Csak a teljes javított cikket add vissza, semmi mást.
 
@@ -123,24 +197,23 @@ Problémák:
 Eredeti cikk:
 {eredeti_cikk}"""
 
-DEFAULT_FACT_CHECK_PROMPT = """Az alábbi cikket ellenőrizd le: tartalmaz-e olyan konkrét állítást a cégről, amely nem ellenőrizhető a cég honlapjáról ({ceg_url}), vagy nyilvánvalóan kitalált/valótlan? Csak akkor jelezz problémát, ha egyértelmű kitalált állítás van. Válaszolj így: "OK" ha nincs probléma, vagy "JAVÍTANDÓ: [probléma rövid leírása]" ha van.
-
-Cikk:
-{cikk_szovege}"""
-
 # ==========================================
 # PROMPT FÁJLRENDSZER
 # ==========================================
 PROMPT_FILES = {
     'main': 'main_prompt.json',
-    'fix': 'fix_prompt.json',
     'fact_check': 'fact_check_prompt.json',
+    'link_check': 'link_check_prompt.json',
+    'format_check': 'format_check_prompt.json',
+    'fix': 'fix_prompt.json',
 }
 
 PROMPT_DEFAULTS = {
     'main': DEFAULT_MAIN_PROMPT,
-    'fix': DEFAULT_FIX_PROMPT,
     'fact_check': DEFAULT_FACT_CHECK_PROMPT,
+    'link_check': DEFAULT_LINK_CHECK_PROMPT,
+    'format_check': DEFAULT_FORMAT_CHECK_PROMPT,
+    'fix': DEFAULT_FIX_PROMPT,
 }
 
 def get_prompt_path(prompt_name):
@@ -186,7 +259,7 @@ def save_prompt(prompt_name, new_text):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 def init_prompts():
-    """Inicializálja a prompt JSON fájlokat, ha még nem léteznek."""
+    """Inicializálja a prompt JSON fájlokat és a tone guide-ot, ha még nem léteznek."""
     for name, default_text in PROMPT_DEFAULTS.items():
         path = get_prompt_path(name)
         if not os.path.exists(path):
@@ -202,6 +275,7 @@ def init_prompts():
             }
             with open(path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
+    init_tone_guide()
 
 # Indításkor inicializálás
 init_prompts()
@@ -297,8 +371,10 @@ def format_markdown_to_docx(doc, text):
 # CIKK GENERÁLÓ LOGIKA
 # ==========================================
 def validate_article(text, keywords):
+    """Kód alapú ellenőrzések: UTM, tiltott fordulatok, szószám, kulcsszavak."""
     errors = []
 
+    # UTM ellenőrzés kód alapon is megmarad
     if "utm_" in text.lower():
         errors.append("A cikkben található linkek utm_ paramétert tartalmaznak.")
 
@@ -323,6 +399,18 @@ def validate_article(text, keywords):
 
     return errors
 
+def ai_check(prompt_text, model):
+    """Általános AI ellenőrző hívás. Visszaadja az 'OK' vagy 'JAVÍTANDÓ: ...' választ."""
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt_text}],
+            temperature=0.2
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return "OK"  # Hiba esetén ne blokkolja a folyamatot
+
 def check_facts(article_text, ceg_url, model):
     """Tényellenőrzés a fact_check prompt alapján."""
     fact_check_template = load_prompt('fact_check')
@@ -330,16 +418,25 @@ def check_facts(article_text, ceg_url, model):
         ceg_url=ceg_url,
         cikk_szovege=article_text
     )
+    return ai_check(prompt, model)
 
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        return "OK"
+def check_links(article_text, keywords, model):
+    """Link és UTM ellenőrzés az AI alapú link_check prompt alapján."""
+    link_check_template = load_prompt('link_check')
+    elvart_linkek = ", ".join(keywords) if keywords else "nincs megadva"
+    prompt = link_check_template.format(
+        elvart_linkek=elvart_linkek,
+        cikk_szovege=article_text
+    )
+    return ai_check(prompt, model)
+
+def check_format(article_text, model):
+    """Formátum és nyelvezet ellenőrzés az AI alapú format_check prompt alapján."""
+    format_check_template = load_prompt('format_check')
+    prompt = format_check_template.format(
+        cikk_szovege=article_text
+    )
+    return ai_check(prompt, model)
 
 def generate_single_article(row_data, job_id, row_index, model):
     ceg_url = row_data.get('ceg_url', '')
@@ -374,6 +471,9 @@ def generate_single_article(row_data, job_id, row_index, model):
 
     megjegyzes_blokk = f"\nEgyéb instrukciók ehhez a cikkhez:\n{megjegyzes}" if megjegyzes else ""
 
+    # Tone guide betöltése
+    tone_guide = load_tone_guide()
+
     # Fő prompt betöltése és kitöltése
     main_prompt_template = load_prompt('main')
     prompt = main_prompt_template.format(
@@ -382,6 +482,7 @@ def generate_single_article(row_data, job_id, row_index, model):
         link_db=len(links),
         linkek_felsorolasa=linkek_felsorolasa,
         opcionalis_korabbi_cikkek_blokk=opcionalis_korabbi_cikkek_blokk,
+        tone_guide=tone_guide,
         megjegyzes_blokk=megjegyzes_blokk
     )
 
@@ -411,13 +512,42 @@ def generate_single_article(row_data, job_id, row_index, model):
         update_status('Hiba', f'API hiba: {str(e)}')
         return None
 
-    # Ellenőrzési és javítási ciklus (max 2 kör)
+    # ==========================================
+    # ELLENŐRZÉSI ÉS JAVÍTÁSI CIKLUS (max 2 kör)
+    # Folyamat:
+    # 1. Kód alapú ellenőrzések
+    # 2. Tényellenőrzés (fact_check)
+    # 3. Link és UTM ellenőrzés (link_check) – AI alapú
+    # 4. Formátum és nyelvezet ellenőrzés (format_check) – AI alapú
+    # 5. Ha van hiba: javítási prompt (max 2 kör)
+    # ==========================================
     for javitas_kor in range(2):
-        errors = validate_article(article_text, keywords)
+        errors = []
 
-        fact_check_result = check_facts(article_text, ceg_url, model)
-        if fact_check_result.startswith("JAVÍTANDÓ:"):
-            errors.append(f"Tényellenőrzési hiba: {fact_check_result[10:].strip()}")
+        # 1. Kód alapú ellenőrzések
+        kod_errors = validate_article(article_text, keywords)
+        errors.extend(kod_errors)
+
+        # 2. Tényellenőrzés
+        update_status('Folyamatban', f'Tényellenőrzés...')
+        time.sleep(1)
+        fact_result = check_facts(article_text, ceg_url, model)
+        if fact_result.startswith("JAVÍTANDÓ:"):
+            errors.append(f"Tényellenőrzési hiba: {fact_result[10:].strip()}")
+
+        # 3. Link és UTM ellenőrzés (AI alapú)
+        update_status('Folyamatban', f'Link és UTM ellenőrzés...')
+        time.sleep(1)
+        link_result = check_links(article_text, keywords, model)
+        if link_result.startswith("JAVÍTANDÓ:"):
+            errors.append(f"Link/UTM hiba: {link_result[10:].strip()}")
+
+        # 4. Formátum és nyelvezet ellenőrzés (AI alapú)
+        update_status('Folyamatban', f'Formátum és nyelvezet ellenőrzés...')
+        time.sleep(1)
+        format_result = check_format(article_text, model)
+        if format_result.startswith("JAVÍTANDÓ:"):
+            errors.append(f"Formátum/nyelvezet hiba: {format_result[10:].strip()}")
 
         if not errors:
             if javitas_kor > 0:
@@ -436,6 +566,7 @@ def generate_single_article(row_data, job_id, row_index, model):
         )
 
         try:
+            time.sleep(1)
             response = client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": javitasi_prompt}],
@@ -616,26 +747,37 @@ def download_file(filename):
 # ==========================================
 @app.route('/prompts', methods=['GET'])
 def get_prompts():
-    """Visszaadja az összes prompt jelenlegi szövegét."""
+    """Visszaadja az összes prompt jelenlegi szövegét, beleértve a tone guide-ot."""
     result = {}
     for name in PROMPT_FILES:
         result[name] = load_prompt(name)
+    result['tone_guide'] = load_tone_guide()
     return jsonify(result)
 
 @app.route('/prompts/<prompt_name>', methods=['POST'])
 def update_prompt(prompt_name):
-    """Elmenti az új prompt verziót."""
-    if prompt_name not in PROMPT_FILES:
-        return jsonify({'error': 'Ismeretlen prompt neve'}), 400
-
+    """Elmenti az új prompt verziót (vagy a tone guide-ot)."""
     data = request.json
     new_text = data.get('text', '').strip()
 
     if not new_text:
         return jsonify({'error': 'A prompt szövege nem lehet üres'}), 400
 
+    # Tone guide: egyszerű felülírás, nincs verziókövetés
+    if prompt_name == 'tone_guide':
+        save_tone_guide(new_text)
+        return jsonify({'success': True, 'message': 'Tone guide mentve'})
+
+    if prompt_name not in PROMPT_FILES:
+        return jsonify({'error': 'Ismeretlen prompt neve'}), 400
+
     save_prompt(prompt_name, new_text)
     return jsonify({'success': True, 'message': 'Prompt mentve'})
+
+@app.route('/prompts/tone_guide', methods=['GET'])
+def get_tone_guide():
+    """Visszaadja a tone guide szövegét."""
+    return jsonify({'text': load_tone_guide()})
 
 @app.route('/prompts/<prompt_name>/versions', methods=['GET'])
 def get_prompt_versions(prompt_name):

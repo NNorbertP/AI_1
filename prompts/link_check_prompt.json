@@ -1,0 +1,10 @@
+{
+  "current": "Ellenőrizd az alábbi cikket:\n1. Tartalmaz-e olyan linket, amelyben utm_ paraméter szerepel? Ha igen, jelöld meg pontosan melyik link és mi a probléma.\n2. Szerepelnek-e a cikkben a következő elvárt kulcsszavak/linkek: {elvart_linkek}? Ha valamelyik hiányzik, jelöld meg.\n\nVálaszolj így:\n- \"OK\" ha minden rendben\n- \"JAVÍTANDÓ: [pontos probléma leírása]\" ha van probléma\n\nCikk:\n{cikk_szovege}",
+  "versions": [
+    {
+      "version": 1,
+      "text": "Ellenőrizd az alábbi cikket:\n1. Tartalmaz-e olyan linket, amelyben utm_ paraméter szerepel? Ha igen, jelöld meg pontosan melyik link és mi a probléma.\n2. Szerepelnek-e a cikkben a következő elvárt kulcsszavak/linkek: {elvart_linkek}? Ha valamelyik hiányzik, jelöld meg.\n\nVálaszolj így:\n- \"OK\" ha minden rendben\n- \"JAVÍTANDÓ: [pontos probléma leírása]\" ha van probléma\n\nCikk:\n{cikk_szovege}",
+      "saved_at": "2026-03-21T19:54:40"
+    }
+  ]
+}

@@ -908,3 +908,23 @@ tbody td {
     width: 100%;
   }
 }
+
+/* ==========================================
+   TONE GUIDE SZEKCIÓ
+   ========================================== */
+.tone-guide-hint {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.tone-guide-hint code {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.tone-guide-textarea {
+  min-height: 400px !important;
+  font-size: 13px;
+  line-height: 1.7;
+}

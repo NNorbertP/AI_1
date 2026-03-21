@@ -148,20 +148,29 @@
 
     <div class="prompt-panel" id="promptPanel" style="display:none">
 
-      <!-- Fülek -->
+      <!-- Fülek – sorrend: main, fact_check, link_check, format_check, fix, tone_guide -->
       <div class="prompt-tabs">
         <button class="prompt-tab active" data-tab="main" onclick="switchPromptTab('main', this)">
           Fő generáló prompt
         </button>
-        <button class="prompt-tab" data-tab="fix" onclick="switchPromptTab('fix', this)">
-          Javítási prompt
-        </button>
         <button class="prompt-tab" data-tab="fact_check" onclick="switchPromptTab('fact_check', this)">
           Tényellenőrző prompt
         </button>
+        <button class="prompt-tab" data-tab="link_check" onclick="switchPromptTab('link_check', this)">
+          Link és UTM ellenőrző
+        </button>
+        <button class="prompt-tab" data-tab="format_check" onclick="switchPromptTab('format_check', this)">
+          Formátum ellenőrző
+        </button>
+        <button class="prompt-tab" data-tab="fix" onclick="switchPromptTab('fix', this)">
+          Javítási prompt
+        </button>
+        <button class="prompt-tab" data-tab="tone_guide" onclick="switchPromptTab('tone_guide', this)">
+          Tone Guide
+        </button>
       </div>
 
-      <!-- Fő generáló prompt -->
+      <!-- 1. Fő generáló prompt -->
       <div class="prompt-content active" id="tab-main">
         <div class="prompt-header-row">
           <h3 class="prompt-title">Fő generáló prompt</h3>
@@ -182,12 +191,88 @@
         </div>
         <div class="prompt-hint">
           Elérhető változók: <code>{ceg_url}</code>, <code>{cikk_cim}</code>, <code>{link_db}</code>,
-          <code>{linkek_felsorolasa}</code>, <code>{opcionalis_korabbi_cikkek_blokk}</code>, <code>{megjegyzes_blokk}</code>
+          <code>{linkek_felsorolasa}</code>, <code>{opcionalis_korabbi_cikkek_blokk}</code>,
+          <code>{tone_guide}</code>, <code>{megjegyzes_blokk}</code>
         </div>
         <textarea class="prompt-textarea" id="prompt-main" readonly></textarea>
       </div>
 
-      <!-- Javítási prompt -->
+      <!-- 2. Tényellenőrző prompt -->
+      <div class="prompt-content" id="tab-fact_check" style="display:none">
+        <div class="prompt-header-row">
+          <h3 class="prompt-title">Tényellenőrző prompt</h3>
+          <div class="prompt-actions">
+            <select class="version-select" id="versions-fact_check" onchange="previewVersion('fact_check', this.value)">
+              <option value="">Verzióelőzmények</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" id="restore-fact_check" onclick="restoreVersion('fact_check')" style="display:none">
+              ↩ Visszaállítás
+            </button>
+            <button class="btn btn-secondary btn-sm" id="edit-btn-fact_check" onclick="toggleEdit('fact_check')">
+              ✏ Szerkesztés
+            </button>
+            <button class="btn btn-primary btn-sm" id="save-btn-fact_check" onclick="savePrompt('fact_check')" style="display:none">
+              💾 Mentés
+            </button>
+          </div>
+        </div>
+        <div class="prompt-hint">
+          Elérhető változók: <code>{ceg_url}</code>, <code>{cikk_szovege}</code>
+        </div>
+        <textarea class="prompt-textarea" id="prompt-fact_check" readonly></textarea>
+      </div>
+
+      <!-- 3. Link és UTM ellenőrző prompt -->
+      <div class="prompt-content" id="tab-link_check" style="display:none">
+        <div class="prompt-header-row">
+          <h3 class="prompt-title">Link és UTM ellenőrző prompt</h3>
+          <div class="prompt-actions">
+            <select class="version-select" id="versions-link_check" onchange="previewVersion('link_check', this.value)">
+              <option value="">Verzióelőzmények</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" id="restore-link_check" onclick="restoreVersion('link_check')" style="display:none">
+              ↩ Visszaállítás
+            </button>
+            <button class="btn btn-secondary btn-sm" id="edit-btn-link_check" onclick="toggleEdit('link_check')">
+              ✏ Szerkesztés
+            </button>
+            <button class="btn btn-primary btn-sm" id="save-btn-link_check" onclick="savePrompt('link_check')" style="display:none">
+              💾 Mentés
+            </button>
+          </div>
+        </div>
+        <div class="prompt-hint">
+          Elérhető változók: <code>{elvart_linkek}</code>, <code>{cikk_szovege}</code>
+        </div>
+        <textarea class="prompt-textarea" id="prompt-link_check" readonly></textarea>
+      </div>
+
+      <!-- 4. Formátum és nyelvezet ellenőrző prompt -->
+      <div class="prompt-content" id="tab-format_check" style="display:none">
+        <div class="prompt-header-row">
+          <h3 class="prompt-title">Formátum és nyelvezet ellenőrző prompt</h3>
+          <div class="prompt-actions">
+            <select class="version-select" id="versions-format_check" onchange="previewVersion('format_check', this.value)">
+              <option value="">Verzióelőzmények</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" id="restore-format_check" onclick="restoreVersion('format_check')" style="display:none">
+              ↩ Visszaállítás
+            </button>
+            <button class="btn btn-secondary btn-sm" id="edit-btn-format_check" onclick="toggleEdit('format_check')">
+              ✏ Szerkesztés
+            </button>
+            <button class="btn btn-primary btn-sm" id="save-btn-format_check" onclick="savePrompt('format_check')" style="display:none">
+              💾 Mentés
+            </button>
+          </div>
+        </div>
+        <div class="prompt-hint">
+          Elérhető változók: <code>{cikk_szovege}</code>
+        </div>
+        <textarea class="prompt-textarea" id="prompt-format_check" readonly></textarea>
+      </div>
+
+      <!-- 5. Javítási prompt -->
       <div class="prompt-content" id="tab-fix" style="display:none">
         <div class="prompt-header-row">
           <h3 class="prompt-title">Javítási prompt</h3>
@@ -212,29 +297,23 @@
         <textarea class="prompt-textarea" id="prompt-fix" readonly></textarea>
       </div>
 
-      <!-- Tényellenőrző prompt -->
-      <div class="prompt-content" id="tab-fact_check" style="display:none">
+      <!-- 6. Tone Guide – egyszerű szerkesztő, nincs verziókövetés -->
+      <div class="prompt-content" id="tab-tone_guide" style="display:none">
         <div class="prompt-header-row">
-          <h3 class="prompt-title">Tényellenőrző prompt</h3>
+          <h3 class="prompt-title">Tone Guide – Stílus és hangnem útmutató</h3>
           <div class="prompt-actions">
-            <select class="version-select" id="versions-fact_check" onchange="previewVersion('fact_check', this.value)">
-              <option value="">Verzióelőzmények</option>
-            </select>
-            <button class="btn btn-secondary btn-sm" id="restore-fact_check" onclick="restoreVersion('fact_check')" style="display:none">
-              ↩ Visszaállítás
-            </button>
-            <button class="btn btn-secondary btn-sm" id="edit-btn-fact_check" onclick="toggleEdit('fact_check')">
+            <button class="btn btn-secondary btn-sm" id="edit-btn-tone_guide" onclick="toggleToneGuideEdit()">
               ✏ Szerkesztés
             </button>
-            <button class="btn btn-primary btn-sm" id="save-btn-fact_check" onclick="savePrompt('fact_check')" style="display:none">
+            <button class="btn btn-primary btn-sm" id="save-btn-tone_guide" onclick="saveToneGuide()" style="display:none">
               💾 Mentés
             </button>
           </div>
         </div>
-        <div class="prompt-hint">
-          Elérhető változók: <code>{ceg_url}</code>, <code>{cikk_szovege}</code>
+        <div class="prompt-hint tone-guide-hint">
+          Ez a fájl a cikkek stílusát és hangnemét határozza meg. A fő generáló promptba automatikusan beillesztésre kerül a <code>{tone_guide}</code> változó helyére. Nincs verziókövetés – a mentés felülírja a fájlt.
         </div>
-        <textarea class="prompt-textarea" id="prompt-fact_check" readonly></textarea>
+        <textarea class="prompt-textarea tone-guide-textarea" id="prompt-tone_guide" readonly></textarea>
       </div>
 
     </div>
