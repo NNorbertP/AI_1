@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SEO Cikk Generáló</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="app-wrapper">
+
+  <!-- FEJLÉC -->
+  <div class="app-header">
+    <span class="icon">✍️</span>
+    <div>
+      <h1>SEO Cikk Generáló</h1>
+      <p>Tölts fel egy Excel fájlt, szerkeszd a sorokat, majd generáld le az összes cikket egyszerre</p>
+    </div>
+  </div>
+
+  <!-- 1. LÉPÉS: FELTÖLTÉS -->
+  <div class="card">
+    <div class="card-title">
+      <span class="step-badge">1</span>
+      Excel fájl feltöltése
+    </div>
+
+    <div id="uploadZone" class="upload-zone">
+      <span class="upload-icon">📂</span>
+      <p>Húzd ide az Excel fájlt, vagy kattints a feltöltéshez</p>
+      <p class="hint">Csak .xlsx formátum támogatott</p>
+      <button class="btn-upload" onclick="document.getElementById('fileInput').click()">Fájl kiválasztása</button>
+    </div>
+
+    <input type="file" id="fileInput" accept=".xlsx">
+
+    <div id="uploadSuccess" class="upload-success" style="display:none"></div>
+  </div>
+
+  <!-- 2. LÉPÉS: TÁBLÁZAT -->
+  <div class="card" id="tableSection" style="display:none">
+    <div class="card-title">
+      <span class="step-badge">2</span>
+      Adatok szerkesztése
+    </div>
+
+    <!-- Statisztika -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-number" id="statTotal">0</div>
+        <div class="stat-label">Összes sor</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="statWaiting" style="color:#a0aec0">0</div>
+        <div class="stat-label">Várakozik</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="statDone" style="color:#38a169">0</div>
+        <div class="stat-label">Kész</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="statErrors" style="color:#e53e3e">0</div>
+        <div class="stat-label">Hiba</div>
+      </div>
+    </div>
+
+    <!-- Eszköztár -->
+    <div class="table-toolbar">
+      <span class="table-info">
+        Kattints bármelyik cellára a szerkesztéshez
+      </span>
+      <div class="table-actions">
+        <button class="btn btn-primary" id="startGenerationBtn">
+          ▶ Generálás indítása
+        </button>
+      </div>
+    </div>
+
+    <!-- Táblázat -->
+    <div class="table-container">
+      <table>
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+      <button class="add-row-btn" id="addRowBtn">
+        + Új sor hozzáadása
+      </button>
+    </div>
+  </div>
+
+  <!-- 3. LÉPÉS: FOLYAMATJELZŐ -->
+  <div class="card" id="progressSection" style="display:none">
+    <div class="card-title">
+      <span class="step-badge">3</span>
+      Generálás folyamata
+    </div>
+
+    <div class="progress-header">
+      <span class="progress-label">Cikkek generálása</span>
+      <span class="progress-count" id="progressCount">0 / 0 cikk kész</span>
+    </div>
+    <div class="progress-bar-wrapper">
+      <div class="progress-bar-fill" id="progressBarFill"></div>
+    </div>
+    <p class="progress-status-text" id="progressStatusText">Inicializálás...</p>
+  </div>
+
+  <!-- 4. LÉPÉS: LETÖLTÉS -->
+  <div class="card" id="downloadSection" style="display:none">
+    <div class="card-title">
+      <span class="step-badge">4</span>
+      Letöltés
+    </div>
+
+    <div class="download-box">
+      <div class="download-info">
+        <span class="download-icon">📄</span>
+        <div class="download-text">
+          <h3>Word dokumentum kész</h3>
+          <p>Az összes cikk formázva, H2 alcímekkel és kattintható linkekkel</p>
+        </div>
+      </div>
+      <a id="downloadLink" href="#" class="btn btn-success" download>
+        ⬇ Word letöltése
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<!-- TOAST ÉRTESÍTÉSEK -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
