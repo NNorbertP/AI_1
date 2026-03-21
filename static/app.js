@@ -1,5 +1,5 @@
 /* ==========================================
-   SEO Cikk Generáló – Frontend logika
+   SEO Cikk Generáló – Frontend logika v2
    ========================================== */
 
 // Állapot
@@ -8,7 +8,11 @@ const state = {
   columns: [],
   jobId: null,
   isGenerating: false,
-  eventSource: null
+  eventSource: null,
+  // Prompt szerkesztő állapot
+  promptEditing: { main: false, fix: false, fact_check: false },
+  promptVersions: { main: [], fix: [], fact_check: [] },
+  promptPreviewVersion: { main: null, fix: null, fact_check: null }
 };
 
 // Megjelenítendő oszlopok a táblázatban (szerkeszthető)
@@ -38,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupFileInput();
   setupGenerateButton();
   setupAddRowButton();
+  loadPrompts();
 });
 
 // ==========================================
@@ -173,7 +178,6 @@ function renderTable() {
     </tr>
   `;
 
-  // Sorok
   renderTableRows();
 }
 
@@ -262,7 +266,6 @@ function addNewRow() {
   renderTable();
   updateStats();
 
-  // Görgetés az új sorhoz
   const tbody = document.getElementById('tableBody');
   const lastRow = tbody.lastElementChild;
   if (lastRow) lastRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -314,6 +317,10 @@ async function startGeneration() {
   renderTable();
   updateStats();
 
+  // Kiválasztott modell
+  const modelSelect = document.getElementById('modelSelect');
+  const selectedModel = modelSelect ? modelSelect.value : 'gpt-4.1-mini';
+
   const btn = document.getElementById('startGenerationBtn');
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> Generálás folyamatban...`;
@@ -327,7 +334,7 @@ async function startGeneration() {
     const res = await fetch('/start-generation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rows: state.rows })
+      body: JSON.stringify({ rows: state.rows, model: selectedModel })
     });
     const data = await res.json();
 
@@ -358,7 +365,6 @@ function listenToSSE(jobId) {
     const data = JSON.parse(event.data);
 
     if (data.type === 'row_update') {
-      // Sor státusz frissítése
       if (state.rows[data.row_index]) {
         state.rows[data.row_index].status = data.status;
         state.rows[data.row_index].message = data.message || '';
@@ -399,7 +405,6 @@ function updateRowInTable(rowIdx) {
   const tr = document.getElementById(`row-${rowIdx}`);
   if (!tr) return;
 
-  // Státusz cella (utolsó előtti td)
   const cells = tr.querySelectorAll('td');
   const statusCell = cells[cells.length - 2];
   if (statusCell) {
@@ -409,7 +414,6 @@ function updateRowInTable(rowIdx) {
     `;
   }
 
-  // Sor kiemelése aktív generálásnál
   tr.style.background = row.status === 'Folyamatban' ? '#fffbeb' : '';
 }
 
@@ -443,6 +447,253 @@ function showDownloadSection(downloadUrl) {
   if (link) link.href = downloadUrl;
   showSection('downloadSection');
   section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ==========================================
+// PROMPT PANEL – ACCORDION
+// ==========================================
+function togglePromptPanel() {
+  const panel = document.getElementById('promptPanel');
+  const arrow = document.getElementById('accordionArrow');
+  const isOpen = panel.style.display !== 'none';
+
+  if (isOpen) {
+    panel.style.display = 'none';
+    arrow.classList.remove('open');
+  } else {
+    panel.style.display = 'block';
+    arrow.classList.add('open');
+  }
+}
+
+// ==========================================
+// PROMPT PANEL – FÜLEK
+// ==========================================
+function switchPromptTab(tabName, btnEl) {
+  // Összes tartalom elrejtése
+  document.querySelectorAll('.prompt-content').forEach(el => {
+    el.style.display = 'none';
+    el.classList.remove('active');
+  });
+  // Összes fül inaktív
+  document.querySelectorAll('.prompt-tab').forEach(el => el.classList.remove('active'));
+
+  // Kiválasztott megjelenítése
+  const content = document.getElementById(`tab-${tabName}`);
+  if (content) {
+    content.style.display = 'block';
+    content.classList.add('active');
+  }
+  if (btnEl) btnEl.classList.add('active');
+}
+
+// ==========================================
+// PROMPT BETÖLTÉS
+// ==========================================
+async function loadPrompts() {
+  try {
+    const res = await fetch('/prompts');
+    const data = await res.json();
+
+    ['main', 'fix', 'fact_check'].forEach(name => {
+      const ta = document.getElementById(`prompt-${name}`);
+      if (ta && data[name]) {
+        ta.value = data[name];
+      }
+    });
+
+    // Verzióelőzmények betöltése minden prompthoz
+    await loadAllVersions();
+
+  } catch (err) {
+    console.error('Prompt betöltési hiba:', err);
+  }
+}
+
+async function loadAllVersions() {
+  for (const name of ['main', 'fix', 'fact_check']) {
+    await loadVersionsForPrompt(name);
+  }
+}
+
+async function loadVersionsForPrompt(promptName) {
+  try {
+    const res = await fetch(`/prompts/${promptName}/versions`);
+    const data = await res.json();
+    state.promptVersions[promptName] = data.versions || [];
+    renderVersionSelect(promptName);
+  } catch (err) {
+    console.error(`Verzió betöltési hiba (${promptName}):`, err);
+  }
+}
+
+function renderVersionSelect(promptName) {
+  const sel = document.getElementById(`versions-${promptName}`);
+  if (!sel) return;
+
+  const versions = state.promptVersions[promptName];
+  sel.innerHTML = `<option value="">Verzióelőzmények (${versions.length} db)</option>`;
+
+  // Fordított sorrendben (legújabb elöl)
+  [...versions].reverse().forEach(v => {
+    const date = v.saved_at ? v.saved_at.replace('T', ' ') : '';
+    const opt = document.createElement('option');
+    opt.value = v.version;
+    opt.textContent = `v${v.version} – ${date}`;
+    sel.appendChild(opt);
+  });
+}
+
+// ==========================================
+// PROMPT SZERKESZTÉS
+// ==========================================
+function toggleEdit(promptName) {
+  const ta = document.getElementById(`prompt-${promptName}`);
+  const editBtn = document.getElementById(`edit-btn-${promptName}`);
+  const saveBtn = document.getElementById(`save-btn-${promptName}`);
+
+  const isEditing = state.promptEditing[promptName];
+
+  if (!isEditing) {
+    // Szerkesztés bekapcsolása
+    ta.removeAttribute('readonly');
+    ta.focus();
+    editBtn.textContent = '✕ Mégse';
+    saveBtn.style.display = 'inline-flex';
+    state.promptEditing[promptName] = true;
+
+    // Eredeti szöveg mentése visszavonáshoz
+    ta.dataset.original = ta.value;
+  } else {
+    // Szerkesztés megszakítása
+    ta.setAttribute('readonly', true);
+    ta.value = ta.dataset.original || ta.value;
+    editBtn.textContent = '✏ Szerkesztés';
+    saveBtn.style.display = 'none';
+    state.promptEditing[promptName] = false;
+  }
+}
+
+async function savePrompt(promptName) {
+  const ta = document.getElementById(`prompt-${promptName}`);
+  const newText = ta.value.trim();
+
+  if (!newText) {
+    showToast('A prompt szövege nem lehet üres', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/prompts/${promptName}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: newText })
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      showToast(data.error, 'error');
+      return;
+    }
+
+    // Szerkesztő bezárása
+    const editBtn = document.getElementById(`edit-btn-${promptName}`);
+    const saveBtn = document.getElementById(`save-btn-${promptName}`);
+    ta.setAttribute('readonly', true);
+    editBtn.textContent = '✏ Szerkesztés';
+    saveBtn.style.display = 'none';
+    state.promptEditing[promptName] = false;
+
+    // Verzióelőzmények frissítése
+    await loadVersionsForPrompt(promptName);
+
+    showToast('Prompt sikeresen mentve', 'success');
+  } catch (err) {
+    showToast('Mentési hiba: ' + err.message, 'error');
+  }
+}
+
+// ==========================================
+// VERZIÓELŐZMÉNYEK
+// ==========================================
+function previewVersion(promptName, versionNumber) {
+  if (!versionNumber) {
+    // Visszaállítás az aktuálisra
+    const restoreBtn = document.getElementById(`restore-${promptName}`);
+    if (restoreBtn) restoreBtn.style.display = 'none';
+    state.promptPreviewVersion[promptName] = null;
+
+    // Aktuális szöveg visszaállítása
+    loadCurrentPrompt(promptName);
+    return;
+  }
+
+  const version = state.promptVersions[promptName].find(
+    v => v.version === parseInt(versionNumber)
+  );
+
+  if (!version) return;
+
+  const ta = document.getElementById(`prompt-${promptName}`);
+  if (ta) {
+    ta.value = version.text;
+    // Ha szerkesztési módban volt, kilépünk
+    if (state.promptEditing[promptName]) {
+      toggleEdit(promptName);
+    }
+  }
+
+  // Visszaállítás gomb megjelenítése
+  const restoreBtn = document.getElementById(`restore-${promptName}`);
+  if (restoreBtn) restoreBtn.style.display = 'inline-flex';
+
+  state.promptPreviewVersion[promptName] = parseInt(versionNumber);
+}
+
+async function loadCurrentPrompt(promptName) {
+  try {
+    const res = await fetch('/prompts');
+    const data = await res.json();
+    const ta = document.getElementById(`prompt-${promptName}`);
+    if (ta && data[promptName]) ta.value = data[promptName];
+  } catch (err) {
+    console.error('Prompt újratöltési hiba:', err);
+  }
+}
+
+async function restoreVersion(promptName) {
+  const versionNumber = state.promptPreviewVersion[promptName];
+  if (!versionNumber) return;
+
+  try {
+    const res = await fetch(`/prompts/${promptName}/restore/${versionNumber}`, {
+      method: 'POST'
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      showToast(data.error, 'error');
+      return;
+    }
+
+    // Visszaállítás gomb elrejtése
+    const restoreBtn = document.getElementById(`restore-${promptName}`);
+    if (restoreBtn) restoreBtn.style.display = 'none';
+
+    // Verzióválasztó visszaállítása
+    const sel = document.getElementById(`versions-${promptName}`);
+    if (sel) sel.value = '';
+
+    state.promptPreviewVersion[promptName] = null;
+
+    // Frissítés
+    await loadCurrentPrompt(promptName);
+    await loadVersionsForPrompt(promptName);
+
+    showToast(`v${versionNumber} sikeresen visszaállítva`, 'success');
+  } catch (err) {
+    showToast('Visszaállítási hiba: ' + err.message, 'error');
+  }
 }
 
 // ==========================================

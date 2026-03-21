@@ -1,0 +1,20 @@
+{
+  "current": "Az alábbi cikket kérlek javítsd ki a megjelölt problémák alapján. Csak a teljes javított cikket add vissza, semmi mást.\n\nProblémák:\n{hibak_felsorolasa}\n\nEredeti cikk:\n{eredeti_cikk}",
+  "versions": [
+    {
+      "version": 1,
+      "text": "Az alábbi cikket kérlek javítsd ki a megjelölt problémák alapján. Csak a teljes javított cikket add vissza, semmi mást.\n\nProblémák:\n{hibak_felsorolasa}\n\nEredeti cikk:\n{eredeti_cikk}",
+      "saved_at": "2026-03-21T19:19:12"
+    },
+    {
+      "version": 2,
+      "text": "Az alábbi cikket kérlek javítsd ki a megjelölt problémák alapján. Csak a teljes javított cikket add vissza, semmi mást.\n\nProblémák:\n{hibak_felsorolasa}\n\nEredeti cikk:\n{eredeti_cikk}",
+      "saved_at": "2026-03-21T19:19:35"
+    },
+    {
+      "version": 3,
+      "text": "Teszt javítási prompt v2.\n\nProblémák:\n{hibak_felsorolasa}\n\nEredeti cikk:\n{eredeti_cikk}",
+      "saved_at": "2026-03-21T19:19:47"
+    }
+  ]
+}

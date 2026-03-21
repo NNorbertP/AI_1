@@ -1,0 +1,10 @@
+{
+  "current": "Az alábbi cikket ellenőrizd le: tartalmaz-e olyan konkrét állítást a cégről, amely nem ellenőrizhető a cég honlapjáról ({ceg_url}), vagy nyilvánvalóan kitalált/valótlan? Csak akkor jelezz problémát, ha egyértelmű kitalált állítás van. Válaszolj így: \"OK\" ha nincs probléma, vagy \"JAVÍTANDÓ: [probléma rövid leírása]\" ha van.\n\nCikk:\n{cikk_szovege}",
+  "versions": [
+    {
+      "version": 1,
+      "text": "Az alábbi cikket ellenőrizd le: tartalmaz-e olyan konkrét állítást a cégről, amely nem ellenőrizhető a cég honlapjáról ({ceg_url}), vagy nyilvánvalóan kitalált/valótlan? Csak akkor jelezz problémát, ha egyértelmű kitalált állítás van. Válaszolj így: \"OK\" ha nincs probléma, vagy \"JAVÍTANDÓ: [probléma rövid leírása]\" ha van.\n\nCikk:\n{cikk_szovege}",
+      "saved_at": "2026-03-21T19:19:12"
+    }
+  ]
+}

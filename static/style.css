@@ -659,3 +659,252 @@ tbody td {
   color: #1a56db;
   border-color: #1a56db;
 }
+
+/* ==========================================
+   MODELLVÁLASZTÓ
+   ========================================== */
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.model-selector-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.model-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #4a5568;
+  white-space: nowrap;
+}
+
+.model-select {
+  padding: 6px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #1a202c;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  appearance: auto;
+}
+
+.model-select:focus {
+  outline: none;
+  border-color: #1a56db;
+  box-shadow: 0 0 0 2px rgba(26, 86, 219, 0.15);
+}
+
+/* ==========================================
+   PROMPT PANEL (ACCORDION)
+   ========================================== */
+.prompt-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.prompt-accordion-btn {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 24px;
+  background: white;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a202c;
+  text-align: left;
+  transition: background 0.15s;
+  border-radius: 12px;
+}
+
+.prompt-accordion-btn:hover {
+  background: #f7fafc;
+}
+
+.accordion-arrow {
+  font-size: 12px;
+  color: #718096;
+  transition: transform 0.25s ease;
+}
+
+.accordion-arrow.open {
+  transform: rotate(180deg);
+}
+
+.prompt-panel {
+  border-top: 1px solid #e2e8f0;
+  padding: 20px 24px 24px;
+}
+
+/* Fülek */
+.prompt-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 0;
+}
+
+.prompt-tab {
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #718096;
+  border-radius: 6px 6px 0 0;
+  transition: all 0.15s;
+  position: relative;
+  bottom: -2px;
+  border-bottom: 2px solid transparent;
+}
+
+.prompt-tab:hover {
+  color: #1a56db;
+  background: #f7fafc;
+}
+
+.prompt-tab.active {
+  color: #1a56db;
+  border-bottom: 2px solid #1a56db;
+  background: white;
+}
+
+/* Prompt tartalom */
+.prompt-content {
+  display: none;
+}
+
+.prompt-content.active {
+  display: block;
+}
+
+.prompt-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.prompt-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a202c;
+}
+
+.prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.prompt-hint {
+  font-size: 11px;
+  color: #718096;
+  margin-bottom: 10px;
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 6px 10px;
+  line-height: 1.8;
+}
+
+.prompt-hint code {
+  background: #edf2f7;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #2d3748;
+}
+
+.prompt-textarea {
+  width: 100%;
+  min-height: 280px;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-family: 'Courier New', monospace;
+  line-height: 1.6;
+  color: #1a202c;
+  background: #f7fafc;
+  resize: vertical;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.prompt-textarea:not([readonly]) {
+  background: white;
+  border-color: #1a56db;
+  box-shadow: 0 0 0 2px rgba(26, 86, 219, 0.1);
+}
+
+.prompt-textarea:focus {
+  outline: none;
+  border-color: #1a56db;
+  background: white;
+}
+
+/* Verzióválasztó */
+.version-select {
+  padding: 4px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #4a5568;
+  background: white;
+  cursor: pointer;
+  max-width: 200px;
+}
+
+.version-select:focus {
+  outline: none;
+  border-color: #1a56db;
+}
+
+/* ==========================================
+   RESZPONZÍV – PROMPT PANEL
+   ========================================== */
+@media (max-width: 768px) {
+  .prompt-tabs {
+    flex-wrap: wrap;
+  }
+
+  .prompt-tab {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .prompt-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .prompt-actions {
+    width: 100%;
+  }
+
+  .model-selector-wrap {
+    flex-wrap: wrap;
+  }
+
+  .version-select {
+    max-width: 100%;
+    width: 100%;
+  }
+}
