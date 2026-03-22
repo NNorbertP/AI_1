@@ -139,183 +139,86 @@
     </div>
   </div>
 
-  <!-- PROMPT PANEL (accordion) -->
-  <div class="card prompt-card">
-    <button class="prompt-accordion-btn" id="promptAccordionBtn" onclick="togglePromptPanel()">
-      <span>⚙️ Promptok megtekintése és szerkesztése</span>
-      <span class="accordion-arrow" id="accordionArrow">▼</span>
+  <!-- PIPELINE EDITOR (accordion) -->
+  <div class="card prompt-card" id="pipelineCard">
+    <button class="prompt-accordion-btn" id="pipelineAccordionBtn" onclick="togglePipelinePanel()">
+      <span>⚙️ Pipeline lépések szerkesztése</span>
+      <span class="accordion-arrow" id="pipelineAccordionArrow">▼</span>
     </button>
 
-    <div class="prompt-panel" id="promptPanel" style="display:none">
+    <div class="prompt-panel" id="pipelinePanel" style="display:none">
 
-      <!-- Fülek – sorrend: main, fact_check, link_check, format_check, fix, tone_guide -->
-      <div class="prompt-tabs">
-        <button class="prompt-tab active" data-tab="main" onclick="switchPromptTab('main', this)">
-          Fő generáló prompt
-        </button>
-        <button class="prompt-tab" data-tab="fact_check" onclick="switchPromptTab('fact_check', this)">
-          Tényellenőrző prompt
-        </button>
-        <button class="prompt-tab" data-tab="link_check" onclick="switchPromptTab('link_check', this)">
-          Link és UTM ellenőrző
-        </button>
-        <button class="prompt-tab" data-tab="format_check" onclick="switchPromptTab('format_check', this)">
-          Formátum ellenőrző
-        </button>
-        <button class="prompt-tab" data-tab="fix" onclick="switchPromptTab('fix', this)">
-          Javítási prompt
-        </button>
-        <button class="prompt-tab" data-tab="tone_guide" onclick="switchPromptTab('tone_guide', this)">
-          Tone Guide
-        </button>
-      </div>
-
-      <!-- 1. Fő generáló prompt -->
-      <div class="prompt-content active" id="tab-main">
-        <div class="prompt-header-row">
-          <h3 class="prompt-title">Fő generáló prompt</h3>
-          <div class="prompt-actions">
-            <select class="version-select" id="versions-main" onchange="previewVersion('main', this.value)">
-              <option value="">Verzióelőzmények</option>
+      <!-- Eszköztár -->
+      <div class="pipeline-toolbar">
+        <div class="pipeline-toolbar-left">
+          <button class="btn btn-secondary btn-sm" id="toggleVarsBtn" onclick="toggleVariablesPanel()">
+            ❓ Elérhető változók
+          </button>
+        </div>
+        <div class="pipeline-toolbar-right">
+          <div class="pipeline-version-group">
+            <label class="version-label">Verzióelőzmények:</label>
+            <select id="pipelineVersionsSelect" class="version-select" onchange="previewPipelineVersion(this.value)">
+              <option value="">-- Válassz verziót --</option>
             </select>
-            <button class="btn btn-secondary btn-sm" id="restore-main" onclick="restoreVersion('main')" style="display:none">
+            <button class="btn btn-secondary btn-sm" id="restorePipelineBtn" onclick="restorePipelineVersion()" style="display:none">
               ↩ Visszaállítás
             </button>
-            <button class="btn btn-secondary btn-sm" id="edit-btn-main" onclick="toggleEdit('main')">
-              ✏ Szerkesztés
-            </button>
-            <button class="btn btn-primary btn-sm" id="save-btn-main" onclick="savePrompt('main')" style="display:none">
-              💾 Mentés
-            </button>
           </div>
+          <button class="btn btn-secondary btn-sm" id="addStepBtn" onclick="addPipelineStep()">
+            + Lépés hozzáadása
+          </button>
+          <button class="btn btn-primary btn-sm" id="savePipelineBtn" onclick="savePipeline()">
+            💾 Pipeline mentése
+          </button>
         </div>
-        <div class="prompt-hint">
-          Elérhető változók: <code>{ceg_url}</code>, <code>{cikk_cim}</code>, <code>{link_db}</code>,
-          <code>{linkek_felsorolasa}</code>, <code>{opcionalis_korabbi_cikkek_blokk}</code>,
-          <code>{tone_guide}</code>, <code>{megjegyzes_blokk}</code>
-        </div>
-        <textarea class="prompt-textarea" id="prompt-main" readonly></textarea>
       </div>
 
-      <!-- 2. Tényellenőrző prompt -->
-      <div class="prompt-content" id="tab-fact_check" style="display:none">
-        <div class="prompt-header-row">
-          <h3 class="prompt-title">Tényellenőrző prompt</h3>
-          <div class="prompt-actions">
-            <select class="version-select" id="versions-fact_check" onchange="previewVersion('fact_check', this.value)">
-              <option value="">Verzióelőzmények</option>
-            </select>
-            <button class="btn btn-secondary btn-sm" id="restore-fact_check" onclick="restoreVersion('fact_check')" style="display:none">
-              ↩ Visszaállítás
-            </button>
-            <button class="btn btn-secondary btn-sm" id="edit-btn-fact_check" onclick="toggleEdit('fact_check')">
-              ✏ Szerkesztés
-            </button>
-            <button class="btn btn-primary btn-sm" id="save-btn-fact_check" onclick="savePrompt('fact_check')" style="display:none">
-              💾 Mentés
-            </button>
-          </div>
-        </div>
-        <div class="prompt-hint">
-          Elérhető változók: <code>{ceg_url}</code>, <code>{cikk_szovege}</code>
-        </div>
-        <textarea class="prompt-textarea" id="prompt-fact_check" readonly></textarea>
+      <!-- Változók súgó panel -->
+      <div id="variablesPanel" class="variables-panel" style="display:none">
+        <div id="variablesContent" class="variables-content">Betöltés...</div>
       </div>
 
-      <!-- 3. Link és UTM ellenőrző prompt -->
-      <div class="prompt-content" id="tab-link_check" style="display:none">
-        <div class="prompt-header-row">
-          <h3 class="prompt-title">Link és UTM ellenőrző prompt</h3>
-          <div class="prompt-actions">
-            <select class="version-select" id="versions-link_check" onchange="previewVersion('link_check', this.value)">
-              <option value="">Verzióelőzmények</option>
-            </select>
-            <button class="btn btn-secondary btn-sm" id="restore-link_check" onclick="restoreVersion('link_check')" style="display:none">
-              ↩ Visszaállítás
-            </button>
-            <button class="btn btn-secondary btn-sm" id="edit-btn-link_check" onclick="toggleEdit('link_check')">
-              ✏ Szerkesztés
-            </button>
-            <button class="btn btn-primary btn-sm" id="save-btn-link_check" onclick="savePrompt('link_check')" style="display:none">
-              💾 Mentés
-            </button>
-          </div>
-        </div>
-        <div class="prompt-hint">
-          Elérhető változók: <code>{elvart_linkek}</code>, <code>{cikk_szovege}</code>
-        </div>
-        <textarea class="prompt-textarea" id="prompt-link_check" readonly></textarea>
+      <!-- Pipeline jelmagyarázat -->
+      <div class="pipeline-legend">
+        <span class="type-badge type-generate">generate</span> cikket ír (az utolsó ilyen lépés lesz a végső cikk)
+        &nbsp;&nbsp;
+        <span class="type-badge type-check">check</span> ellenőrző (JAVÍTANDÓ: válasz esetén javítás indul)
+        &nbsp;&nbsp;
+        <span class="type-badge type-fix">fix</span> javítás (csak ha volt check hiba)
       </div>
 
-      <!-- 4. Formátum és nyelvezet ellenőrző prompt -->
-      <div class="prompt-content" id="tab-format_check" style="display:none">
-        <div class="prompt-header-row">
-          <h3 class="prompt-title">Formátum és nyelvezet ellenőrző prompt</h3>
-          <div class="prompt-actions">
-            <select class="version-select" id="versions-format_check" onchange="previewVersion('format_check', this.value)">
-              <option value="">Verzióelőzmények</option>
-            </select>
-            <button class="btn btn-secondary btn-sm" id="restore-format_check" onclick="restoreVersion('format_check')" style="display:none">
-              ↩ Visszaállítás
-            </button>
-            <button class="btn btn-secondary btn-sm" id="edit-btn-format_check" onclick="toggleEdit('format_check')">
-              ✏ Szerkesztés
-            </button>
-            <button class="btn btn-primary btn-sm" id="save-btn-format_check" onclick="savePrompt('format_check')" style="display:none">
-              💾 Mentés
-            </button>
-          </div>
-        </div>
-        <div class="prompt-hint">
-          Elérhető változók: <code>{cikk_szovege}</code>
-        </div>
-        <textarea class="prompt-textarea" id="prompt-format_check" readonly></textarea>
+      <!-- Lépések listája -->
+      <div id="pipelineStepsList" class="pipeline-steps-list">
+        <!-- Dinamikusan töltődik -->
       </div>
 
-      <!-- 5. Javítási prompt -->
-      <div class="prompt-content" id="tab-fix" style="display:none">
-        <div class="prompt-header-row">
-          <h3 class="prompt-title">Javítási prompt</h3>
-          <div class="prompt-actions">
-            <select class="version-select" id="versions-fix" onchange="previewVersion('fix', this.value)">
-              <option value="">Verzióelőzmények</option>
-            </select>
-            <button class="btn btn-secondary btn-sm" id="restore-fix" onclick="restoreVersion('fix')" style="display:none">
-              ↩ Visszaállítás
-            </button>
-            <button class="btn btn-secondary btn-sm" id="edit-btn-fix" onclick="toggleEdit('fix')">
-              ✏ Szerkesztés
-            </button>
-            <button class="btn btn-primary btn-sm" id="save-btn-fix" onclick="savePrompt('fix')" style="display:none">
-              💾 Mentés
-            </button>
-          </div>
-        </div>
-        <div class="prompt-hint">
-          Elérhető változók: <code>{hibak_felsorolasa}</code>, <code>{eredeti_cikk}</code>
-        </div>
-        <textarea class="prompt-textarea" id="prompt-fix" readonly></textarea>
-      </div>
+    </div>
+  </div>
 
-      <!-- 6. Tone Guide – egyszerű szerkesztő, nincs verziókövetés -->
-      <div class="prompt-content" id="tab-tone_guide" style="display:none">
-        <div class="prompt-header-row">
-          <h3 class="prompt-title">Tone Guide – Stílus és hangnem útmutató</h3>
-          <div class="prompt-actions">
-            <button class="btn btn-secondary btn-sm" id="edit-btn-tone_guide" onclick="toggleToneGuideEdit()">
-              ✏ Szerkesztés
-            </button>
-            <button class="btn btn-primary btn-sm" id="save-btn-tone_guide" onclick="saveToneGuide()" style="display:none">
-              💾 Mentés
-            </button>
-          </div>
-        </div>
-        <div class="prompt-hint tone-guide-hint">
-          Ez a fájl a cikkek stílusát és hangnemét határozza meg. A fő generáló promptba automatikusan beillesztésre kerül a <code>{tone_guide}</code> változó helyére. Nincs verziókövetés – a mentés felülírja a fájlt.
-        </div>
-        <textarea class="prompt-textarea tone-guide-textarea" id="prompt-tone_guide" readonly></textarea>
-      </div>
+  <!-- TONE GUIDE SZERKESZTŐ (accordion) -->
+  <div class="card prompt-card" id="toneGuideCard">
+    <button class="prompt-accordion-btn" id="toneGuideAccordionBtn" onclick="toggleToneGuidePanel()">
+      <span>📝 Tone Guide szerkesztése</span>
+      <span class="accordion-arrow" id="toneGuideAccordionArrow">▼</span>
+    </button>
 
+    <div class="prompt-panel" id="toneGuidePanel" style="display:none">
+      <div class="prompt-hint tone-guide-hint">
+        A Tone Guide a stílus és hangnem útmutató. A generáló promptba automatikusan beillesztésre kerül a <code>{tone_guide}</code> változó helyére. Mentéskor felülírja a <code>prompts/tone_guide.txt</code> fájlt.
+      </div>
+      <div class="prompt-header-row">
+        <h3 class="prompt-title">Tone Guide szövege</h3>
+        <div class="prompt-actions">
+          <button class="btn btn-secondary btn-sm" id="editToneGuideBtn" onclick="toggleToneGuideEdit()">
+            ✏ Szerkesztés
+          </button>
+          <button class="btn btn-primary btn-sm" id="saveToneGuideBtn" onclick="saveToneGuide()" style="display:none">
+            💾 Mentés
+          </button>
+        </div>
+      </div>
+      <textarea class="prompt-textarea tone-guide-textarea" id="toneGuideTextarea" readonly></textarea>
     </div>
   </div>
 

@@ -25,26 +25,22 @@ app.config['DOWNLOAD_FOLDER'] = 'downloads'
 app.config['PROMPTS_FOLDER'] = 'prompts'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB limit
 
-# Biztosítjuk, hogy a mappák létezzenek
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['DOWNLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['PROMPTS_FOLDER'], exist_ok=True)
 
-# WordPress iframe támogatás
 @app.after_request
 def add_header(response):
     response.headers['X-Frame-Options'] = 'ALLOWALL'
     response.headers['Access-Control-Allow-Origin'] = '*'
     return response
 
-# OpenAI kliens
 try:
     client = OpenAI()
 except Exception as e:
     print(f"Figyelem: OpenAI kliens inicializálási hiba: {e}")
     client = None
 
-# Választható modellek
 AVAILABLE_MODELS = [
     "gpt-5.4",
     "gpt-5.4-mini",
@@ -56,19 +52,18 @@ AVAILABLE_MODELS = [
 ]
 DEFAULT_MODEL = "gpt-5.4-mini"
 
-# Tiltott fordulatok (kód alapú ellenőrzés)
 FORBIDDEN_PHRASES = [
     "Az oldal szerint", "A leírás szerint", "Ez nem bénázás",
     "Tapasztalatból mondom", "ez nem csak", "talán", "nagyjából", "bizonyos értelemben"
 ]
 
-# Állapotkezelés a generálásokhoz
 generation_jobs = {}
 
 # ==========================================
-# TONE GUIDE
+# TONE GUIDE ÉS PIPELINE FÁJLRENDSZER
 # ==========================================
-TONE_GUIDE_PATH = os.path.join('prompts', 'tone_guide.txt')
+TONE_GUIDE_PATH = os.path.join(app.config['PROMPTS_FOLDER'], 'tone_guide.txt')
+PIPELINE_PATH = os.path.join(app.config['PROMPTS_FOLDER'], 'pipeline.json')
 
 DEFAULT_TONE_GUIDE = """1. Magas szintű áttekintés
 Általános stílusösszefoglaló
@@ -103,27 +98,14 @@ NE tedd
 - Ne legyen ilyen stílusú mondat: „ez nem csak X, hanem Y"
 - Felkiáltójel szinte ne legyen."""
 
-def load_tone_guide():
-    """Betölti a tone guide szövegét a txt fájlból."""
-    if os.path.exists(TONE_GUIDE_PATH):
-        with open(TONE_GUIDE_PATH, 'r', encoding='utf-8') as f:
-            return f.read()
-    return DEFAULT_TONE_GUIDE
-
-def save_tone_guide(text):
-    """Elmenti a tone guide szövegét a txt fájlba."""
-    with open(TONE_GUIDE_PATH, 'w', encoding='utf-8') as f:
-        f.write(text)
-
-def init_tone_guide():
-    """Inicializálja a tone_guide.txt fájlt, ha nem létezik."""
-    if not os.path.exists(TONE_GUIDE_PATH):
-        save_tone_guide(DEFAULT_TONE_GUIDE)
-
-# ==========================================
-# PROMPT ALAPÉRTÉKEK
-# ==========================================
-DEFAULT_MAIN_PROMPT = """Te egy senior SEO-szövegíró és tartalomstratéga vagy. Magyarul írsz, természetesen, marketing-szag nélkül, de konverzióra optimalizálva.
+DEFAULT_PIPELINE = {
+    "steps": [
+        {
+            "id": 1,
+            "name": "Cikk generálás",
+            "type": "generate",
+            "enabled": True,
+            "prompt": """Te egy senior SEO-szövegíró és tartalomstratéga vagy. Magyarul írsz, természetesen, marketing-szag nélkül, de konverzióra optimalizálva.
 Írj egy minőségi, keresőoptimalizált blogcikket a következő szolgáltatás oldal támogatására, és organikus forgalom + érdeklődők szerzésére.
 
 Cég honlapjának url-je: {ceg_url}
@@ -158,13 +140,23 @@ Ne használj bizonytalanító szavakat döntéstámogató szövegben: talán, na
 
 Stílus és hangnem útmutató:
 {tone_guide}{megjegyzes_blokk}"""
-
-DEFAULT_FACT_CHECK_PROMPT = """Az alábbi cikket ellenőrizd le: tartalmaz-e olyan konkrét állítást a cégről, amely nem ellenőrizhető a cég honlapjáról ({ceg_url}), vagy nyilvánvalóan kitalált/valótlan? Csak akkor jelezz problémát, ha egyértelmű kitalált állítás van. Válaszolj így: "OK" ha nincs probléma, vagy "JAVÍTANDÓ: [probléma rövid leírása]" ha van.
+        },
+        {
+            "id": 2,
+            "name": "Tényellenőrzés",
+            "type": "check",
+            "enabled": True,
+            "prompt": """Az alábbi cikket ellenőrizd le: tartalmaz-e olyan konkrét állítást a cégről, amely nem ellenőrizhető a cég honlapjáról ({ceg_url}), vagy nyilvánvalóan kitalált/valótlan? Csak akkor jelezz problémát, ha egyértelmű kitalált állítás van. Válaszolj így: "OK" ha nincs probléma, vagy "JAVÍTANDÓ: [probléma rövid leírása]" ha van.
 
 Cikk:
-{cikk_szovege}"""
-
-DEFAULT_LINK_CHECK_PROMPT = """Ellenőrizd az alábbi cikket:
+{aktualis_cikk}"""
+        },
+        {
+            "id": 3,
+            "name": "Link és UTM ellenőrzés",
+            "type": "check",
+            "enabled": True,
+            "prompt": """Ellenőrizd az alábbi cikket:
 1. Tartalmaz-e olyan linket, amelyben utm_ paraméter szerepel? Ha igen, jelöld meg pontosan melyik link és mi a probléma.
 2. Szerepelnek-e a cikkben a következő elvárt kulcsszavak/linkek: {elvart_linkek}? Ha valamelyik hiányzik, jelöld meg.
 
@@ -173,9 +165,14 @@ Válaszolj így:
 - "JAVÍTANDÓ: [pontos probléma leírása]" ha van probléma
 
 Cikk:
-{cikk_szovege}"""
-
-DEFAULT_FORMAT_CHECK_PROMPT = """Ellenőrizd az alábbi magyar nyelvű cikket az alábbi szempontok szerint:
+{aktualis_cikk}"""
+        },
+        {
+            "id": 4,
+            "name": "Formátum és nyelvezet ellenőrzés",
+            "type": "check",
+            "enabled": True,
+            "prompt": """Ellenőrizd az alábbi magyar nyelvű cikket az alábbi szempontok szerint:
 
 1. Szerepelnek-e benne tiltott fordulatok? Tiltott: "Az oldal szerint", "A leírás szerint", "Ez nem bénázás", "Tapasztalatból mondom", "ez nem csak", "talán", "nagyjából", "bizonyos értelemben", "felkiáltójel"
 2. A mondatok megfelelően rövidek-e, van-e túl hosszú, nehezen érthető mondat?
@@ -187,98 +184,67 @@ Válaszolj így:
 - "JAVÍTANDÓ: [pontos probléma leírása]" ha van probléma
 
 Cikk:
-{cikk_szovege}"""
-
-DEFAULT_FIX_PROMPT = """Az alábbi cikket kérlek javítsd ki a megjelölt problémák alapján. Csak a teljes javított cikket add vissza, semmi mást.
+{aktualis_cikk}"""
+        },
+        {
+            "id": 5,
+            "name": "Javítás",
+            "type": "fix",
+            "enabled": True,
+            "prompt": """Az alábbi cikket kérlek javítsd ki a megjelölt problémák alapján. Csak a teljes javított cikket add vissza, semmi mást.
 
 Problémák:
-{hibak_felsorolasa}
+{javitasi_problemak}
 
 Eredeti cikk:
-{eredeti_cikk}"""
-
-# ==========================================
-# PROMPT FÁJLRENDSZER
-# ==========================================
-PROMPT_FILES = {
-    'main': 'main_prompt.json',
-    'fact_check': 'fact_check_prompt.json',
-    'link_check': 'link_check_prompt.json',
-    'format_check': 'format_check_prompt.json',
-    'fix': 'fix_prompt.json',
+{aktualis_cikk}"""
+        }
+    ],
+    "versions": []
 }
 
-PROMPT_DEFAULTS = {
-    'main': DEFAULT_MAIN_PROMPT,
-    'fact_check': DEFAULT_FACT_CHECK_PROMPT,
-    'link_check': DEFAULT_LINK_CHECK_PROMPT,
-    'format_check': DEFAULT_FORMAT_CHECK_PROMPT,
-    'fix': DEFAULT_FIX_PROMPT,
-}
+def load_tone_guide():
+    if os.path.exists(TONE_GUIDE_PATH):
+        with open(TONE_GUIDE_PATH, 'r', encoding='utf-8') as f:
+            return f.read()
+    return DEFAULT_TONE_GUIDE
 
-def get_prompt_path(prompt_name):
-    return os.path.join(app.config['PROMPTS_FOLDER'], PROMPT_FILES[prompt_name])
+def save_tone_guide(text):
+    with open(TONE_GUIDE_PATH, 'w', encoding='utf-8') as f:
+        f.write(text)
 
-def load_prompt(prompt_name):
-    """Betölti a prompt aktuális szövegét a JSON fájlból."""
-    path = get_prompt_path(prompt_name)
-    if os.path.exists(path):
-        with open(path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        return data.get('current', PROMPT_DEFAULTS[prompt_name])
-    return PROMPT_DEFAULTS[prompt_name]
-
-def load_prompt_data(prompt_name):
-    """Betölti a teljes prompt JSON adatot (current + versions)."""
-    path = get_prompt_path(prompt_name)
-    if os.path.exists(path):
-        with open(path, 'r', encoding='utf-8') as f:
+def load_pipeline_data():
+    if os.path.exists(PIPELINE_PATH):
+        with open(PIPELINE_PATH, 'r', encoding='utf-8') as f:
             return json.load(f)
-    return {'current': PROMPT_DEFAULTS[prompt_name], 'versions': []}
+    return DEFAULT_PIPELINE.copy()
 
-def save_prompt(prompt_name, new_text):
-    """Elmenti az új prompt szöveget, a régit verzióba teszi."""
-    path = get_prompt_path(prompt_name)
-    data = load_prompt_data(prompt_name)
-
-    old_text = data.get('current', '')
+def save_pipeline_data(steps):
+    data = load_pipeline_data()
+    old_steps = data.get('steps', [])
     versions = data.get('versions', [])
-    next_version = len(versions) + 1
-
-    if old_text:
+    
+    if old_steps:
         versions.append({
-            'version': next_version,
-            'text': old_text,
+            'version': len(versions) + 1,
+            'steps': old_steps,
             'saved_at': datetime.now().isoformat(timespec='seconds')
         })
-
-    data['current'] = new_text
+    
+    data['steps'] = steps
     data['versions'] = versions
-
-    with open(path, 'w', encoding='utf-8') as f:
+    
+    with open(PIPELINE_PATH, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def init_prompts():
-    """Inicializálja a prompt JSON fájlokat és a tone guide-ot, ha még nem léteznek."""
-    for name, default_text in PROMPT_DEFAULTS.items():
-        path = get_prompt_path(name)
-        if not os.path.exists(path):
-            data = {
-                'current': default_text,
-                'versions': [
-                    {
-                        'version': 1,
-                        'text': default_text,
-                        'saved_at': datetime.now().isoformat(timespec='seconds')
-                    }
-                ]
-            }
-            with open(path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-    init_tone_guide()
+def init_files():
+    if not os.path.exists(TONE_GUIDE_PATH):
+        save_tone_guide(DEFAULT_TONE_GUIDE)
+    if not os.path.exists(PIPELINE_PATH):
+        with open(PIPELINE_PATH, 'w', encoding='utf-8') as f:
+            json.dump(DEFAULT_PIPELINE, f, ensure_ascii=False, indent=2)
 
-# Indításkor inicializálás
-init_prompts()
+init_files()
 
 # ==========================================
 # SEGÉDFÜGGVÉNYEK (Word formázás)
@@ -368,13 +334,11 @@ def format_markdown_to_docx(doc, text):
             add_formatted_runs(p, stripped)
 
 # ==========================================
-# CIKK GENERÁLÓ LOGIKA
+# CIKK GENERÁLÓ LOGIKA (PIPELINE)
 # ==========================================
 def validate_article(text, keywords):
     """Kód alapú ellenőrzések: UTM, tiltott fordulatok, szószám, kulcsszavak."""
     errors = []
-
-    # UTM ellenőrzés kód alapon is megmarad
     if "utm_" in text.lower():
         errors.append("A cikkben található linkek utm_ paramétert tartalmaznak.")
 
@@ -399,93 +363,25 @@ def validate_article(text, keywords):
 
     return errors
 
-def ai_check(prompt_text, model):
-    """Általános AI ellenőrző hívás. Visszaadja az 'OK' vagy 'JAVÍTANDÓ: ...' választ."""
+def safe_format(template, variables):
+    """Biztonságos string formázás, ami figyelmen kívül hagyja a hiányzó változókat."""
+    class SafeDict(dict):
+        def __missing__(self, key):
+            return '{' + key + '}'
+    return template.format_map(SafeDict(variables))
+
+def call_llm(prompt_text, model, temperature=0.7):
     try:
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt_text}],
-            temperature=0.2
+            temperature=temperature
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        return "OK"  # Hiba esetén ne blokkolja a folyamatot
-
-def check_facts(article_text, ceg_url, model):
-    """Tényellenőrzés a fact_check prompt alapján."""
-    fact_check_template = load_prompt('fact_check')
-    prompt = fact_check_template.format(
-        ceg_url=ceg_url,
-        cikk_szovege=article_text
-    )
-    return ai_check(prompt, model)
-
-def check_links(article_text, keywords, model):
-    """Link és UTM ellenőrzés az AI alapú link_check prompt alapján."""
-    link_check_template = load_prompt('link_check')
-    elvart_linkek = ", ".join(keywords) if keywords else "nincs megadva"
-    prompt = link_check_template.format(
-        elvart_linkek=elvart_linkek,
-        cikk_szovege=article_text
-    )
-    return ai_check(prompt, model)
-
-def check_format(article_text, model):
-    """Formátum és nyelvezet ellenőrzés az AI alapú format_check prompt alapján."""
-    format_check_template = load_prompt('format_check')
-    prompt = format_check_template.format(
-        cikk_szovege=article_text
-    )
-    return ai_check(prompt, model)
+        return f"API Hiba: {str(e)}"
 
 def generate_single_article(row_data, job_id, row_index, model):
-    ceg_url = row_data.get('ceg_url', '')
-    cikk_cim = row_data.get('cikk_cim', '')
-    megjegyzes = row_data.get('megjegyzes', '')
-
-    links = []
-    keywords = []
-
-    for i in range(1, 6):
-        kw = row_data.get(f'link_{i}_kulcsszo', '')
-        url = row_data.get(f'link_{i}_url', '')
-
-        if kw and url:
-            links.append(f"- [{kw}]({url})")
-            keywords.append(kw)
-
-    linkek_felsorolasa = "\n".join(links)
-
-    korabbi_cikkek = []
-    for i in range(1, 3):
-        url = row_data.get(f'korabbi_cikk_url_{i}', '')
-        if url:
-            korabbi_cikkek.append(f"- {url}")
-
-    opcionalis_korabbi_cikkek_blokk = ""
-    if korabbi_cikkek:
-        opcionalis_korabbi_cikkek_blokk = (
-            "Kérlek, helyezz el természetes hivatkozást a következő korábbi cikk(ek)re is "
-            "(a megfelelő kontextusban):\n" + "\n".join(korabbi_cikkek)
-        )
-
-    megjegyzes_blokk = f"\nEgyéb instrukciók ehhez a cikkhez:\n{megjegyzes}" if megjegyzes else ""
-
-    # Tone guide betöltése
-    tone_guide = load_tone_guide()
-
-    # Fő prompt betöltése és kitöltése
-    main_prompt_template = load_prompt('main')
-    prompt = main_prompt_template.format(
-        ceg_url=ceg_url,
-        cikk_cim=cikk_cim,
-        link_db=len(links),
-        linkek_felsorolasa=linkek_felsorolasa,
-        opcionalis_korabbi_cikkek_blokk=opcionalis_korabbi_cikkek_blokk,
-        tone_guide=tone_guide,
-        megjegyzes_blokk=megjegyzes_blokk
-    )
-
     job = generation_jobs[job_id]
 
     def update_status(status, message):
@@ -499,87 +395,122 @@ def generate_single_article(row_data, job_id, row_index, model):
             'message': message
         })
 
-    update_status('Folyamatban', 'Generálás indítása...')
+    # Változók előkészítése
+    vars_dict = {k: str(v) for k, v in row_data.items()}
+    
+    links = []
+    keywords = []
+    for i in range(1, 6):
+        kw = row_data.get(f'link_{i}_kulcsszo', '')
+        url = row_data.get(f'link_{i}_url', '')
+        if kw and url:
+            links.append(f"- [{kw}]({url})")
+            keywords.append(kw)
+            
+    vars_dict['link_db'] = str(len(links))
+    vars_dict['linkek_felsorolasa'] = "\n".join(links)
+    vars_dict['elvart_linkek'] = ", ".join(keywords) if keywords else "nincs megadva"
 
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7
+    korabbi_cikkek = []
+    for i in range(1, 3):
+        url = row_data.get(f'korabbi_cikk_url_{i}', '')
+        if url:
+            korabbi_cikkek.append(f"- {url}")
+
+    if korabbi_cikkek:
+        vars_dict['opcionalis_korabbi_cikkek_blokk'] = (
+            "Kérlek, helyezz el természetes hivatkozást a következő korábbi cikk(ek)re is "
+            "(a megfelelő kontextusban):\n" + "\n".join(korabbi_cikkek)
         )
-        article_text = response.choices[0].message.content.strip()
-    except Exception as e:
-        update_status('Hiba', f'API hiba: {str(e)}')
+    else:
+        vars_dict['opcionalis_korabbi_cikkek_blokk'] = ""
+
+    megjegyzes = row_data.get('megjegyzes', '')
+    vars_dict['megjegyzes_blokk'] = f"\nEgyéb instrukciók ehhez a cikkhez:\n{megjegyzes}" if megjegyzes else ""
+    vars_dict['tone_guide'] = load_tone_guide()
+    vars_dict['aktualis_cikk'] = ""
+    vars_dict['elozo_kimenet'] = ""
+    vars_dict['javitasi_problemak'] = ""
+
+    pipeline = load_pipeline_data()
+    steps = [s for s in pipeline.get('steps', []) if s.get('enabled', True)]
+    
+    generate_steps = [s for s in steps if s['type'] == 'generate']
+    check_steps = [s for s in steps if s['type'] == 'check']
+    fix_steps = [s for s in steps if s['type'] == 'fix']
+
+    if not generate_steps:
+        update_status('Hiba', 'Nincs engedélyezett generáló lépés a pipeline-ban!')
         return None
 
-    # ==========================================
-    # ELLENŐRZÉSI ÉS JAVÍTÁSI CIKLUS (max 2 kör)
-    # Folyamat:
-    # 1. Kód alapú ellenőrzések
-    # 2. Tényellenőrzés (fact_check)
-    # 3. Link és UTM ellenőrzés (link_check) – AI alapú
-    # 4. Formátum és nyelvezet ellenőrzés (format_check) – AI alapú
-    # 5. Ha van hiba: javítási prompt (max 2 kör)
-    # ==========================================
+    # 1. Fő generálási fázis (összes generate lépés futtatása sorban)
+    update_status('Folyamatban', 'Generálás indítása...')
+    
+    for step in generate_steps:
+        prompt = safe_format(step['prompt'], vars_dict)
+        output = call_llm(prompt, model, temperature=0.7)
+        
+        if output.startswith("API Hiba:"):
+            update_status('Hiba', output)
+            return None
+            
+        vars_dict[f"lepes_{step['id']}_kimenet"] = output
+        vars_dict['elozo_kimenet'] = output
+        vars_dict['aktualis_cikk'] = output
+        time.sleep(1)
+
+    # 2. Ellenőrzési és javítási ciklus (max 2 kör)
     for javitas_kor in range(2):
         errors = []
-
-        # 1. Kód alapú ellenőrzések
-        kod_errors = validate_article(article_text, keywords)
+        
+        # Kód alapú ellenőrzés
+        kod_errors = validate_article(vars_dict['aktualis_cikk'], keywords)
         errors.extend(kod_errors)
 
-        # 2. Tényellenőrzés
-        update_status('Folyamatban', f'Tényellenőrzés...')
-        time.sleep(1)
-        fact_result = check_facts(article_text, ceg_url, model)
-        if fact_result.startswith("JAVÍTANDÓ:"):
-            errors.append(f"Tényellenőrzési hiba: {fact_result[10:].strip()}")
-
-        # 3. Link és UTM ellenőrzés (AI alapú)
-        update_status('Folyamatban', f'Link és UTM ellenőrzés...')
-        time.sleep(1)
-        link_result = check_links(article_text, keywords, model)
-        if link_result.startswith("JAVÍTANDÓ:"):
-            errors.append(f"Link/UTM hiba: {link_result[10:].strip()}")
-
-        # 4. Formátum és nyelvezet ellenőrzés (AI alapú)
-        update_status('Folyamatban', f'Formátum és nyelvezet ellenőrzés...')
-        time.sleep(1)
-        format_result = check_format(article_text, model)
-        if format_result.startswith("JAVÍTANDÓ:"):
-            errors.append(f"Formátum/nyelvezet hiba: {format_result[10:].strip()}")
+        # AI check lépések
+        for step in check_steps:
+            update_status('Folyamatban', f"{step['name']}...")
+            prompt = safe_format(step['prompt'], vars_dict)
+            output = call_llm(prompt, model, temperature=0.2)
+            
+            vars_dict[f"lepes_{step['id']}_kimenet"] = output
+            vars_dict['elozo_kimenet'] = output
+            
+            if output.startswith("JAVÍTANDÓ:"):
+                errors.append(f"{step['name']} hiba: {output[10:].strip()}")
+            time.sleep(1)
 
         if not errors:
             if javitas_kor > 0:
                 update_status('Kész', f'Javítva {javitas_kor}. körben')
             else:
                 update_status('Kész', 'Sikeres generálás')
-            return article_text
+            return vars_dict['aktualis_cikk']
 
+        # Ha van hiba, de nincs fix lépés
+        if not fix_steps:
+            update_status('Hiba', f'Hibák találhatók, de nincs javítási lépés engedélyezve. ({len(errors)} hiba)')
+            return vars_dict['aktualis_cikk']
+
+        # Javítás futtatása
         update_status('Folyamatban', f'Javítás folyamatban ({javitas_kor+1}/2)... Hibák: {len(errors)}')
-
-        # Javítási prompt betöltése és kitöltése
-        fix_prompt_template = load_prompt('fix')
-        javitasi_prompt = fix_prompt_template.format(
-            hibak_felsorolasa="\n".join('- ' + e for e in errors),
-            eredeti_cikk=article_text
-        )
-
-        try:
+        vars_dict['javitasi_problemak'] = "\n".join('- ' + e for e in errors)
+        
+        for step in fix_steps:
+            prompt = safe_format(step['prompt'], vars_dict)
+            output = call_llm(prompt, model, temperature=0.5)
+            
+            if output.startswith("API Hiba:"):
+                update_status('Hiba', f"Javítási {output}")
+                return None
+                
+            vars_dict[f"lepes_{step['id']}_kimenet"] = output
+            vars_dict['elozo_kimenet'] = output
+            vars_dict['aktualis_cikk'] = output
             time.sleep(1)
-            response = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": javitasi_prompt}],
-                temperature=0.5
-            )
-            article_text = response.choices[0].message.content.strip()
-        except Exception as e:
-            update_status('Hiba', f'Javítási API hiba: {str(e)}')
-            return None
 
-    # Ha maradtak hibák 2 kör után is
     update_status('Hiba', 'Nem sikerült javítani a hibákat 2 kör alatt.')
-    return article_text  # Visszaadjuk a részben hibásat is
+    return vars_dict['aktualis_cikk']
 
 def generation_worker(job_id):
     job = generation_jobs[job_id]
@@ -591,7 +522,7 @@ def generation_worker(job_id):
 
     for idx, row in enumerate(rows):
         if row.get('status') == 'Kész':
-            continue  # Ha újraindítjuk, átugorjuk a kész cikkeket
+            continue
 
         if not row.get('ceg_url') or not row.get('cikk_cim'):
             job['rows'][idx]['status'] = 'Hiba'
@@ -623,9 +554,6 @@ def generation_worker(job_id):
                 'total': job['total']
             })
 
-        time.sleep(1)  # Rate limit védelem
-
-    # Word mentése
     if sikeres_cikkek > 0:
         filename = f"keszult_cikkek_{job_id}.docx"
         filepath = os.path.join(app.config['DOWNLOAD_FOLDER'], filename)
@@ -637,7 +565,7 @@ def generation_worker(job_id):
         'type': 'complete',
         'download_url': job.get('download_url', None)
     })
-    job['events'].put(None)  # Vége jelzés az SSE-nek
+    job['events'].put(None)
 
 # ==========================================
 # ÚTVONALAK – ALAP
@@ -689,7 +617,6 @@ def start_generation():
     rows = data.get('rows', [])
     model = data.get('model', DEFAULT_MODEL)
 
-    # Modell validálása
     if model not in AVAILABLE_MODELS:
         model = DEFAULT_MODEL
 
@@ -708,7 +635,6 @@ def start_generation():
         'events': Queue()
     }
 
-    # Háttérszál indítása
     thread = threading.Thread(target=generation_worker, args=(job_id,))
     thread.daemon = True
     thread.start()
@@ -743,69 +669,82 @@ def download_file(filename):
     return "Fájl nem található", 404
 
 # ==========================================
-# ÚTVONALAK – PROMPTOK
+# ÚTVONALAK – PIPELINE & TONE GUIDE
 # ==========================================
-@app.route('/prompts', methods=['GET'])
-def get_prompts():
-    """Visszaadja az összes prompt jelenlegi szövegét, beleértve a tone guide-ot."""
-    result = {}
-    for name in PROMPT_FILES:
-        result[name] = load_prompt(name)
-    result['tone_guide'] = load_tone_guide()
-    return jsonify(result)
+@app.route('/pipeline', methods=['GET'])
+def get_pipeline():
+    data = load_pipeline_data()
+    return jsonify(data)
 
-@app.route('/prompts/<prompt_name>', methods=['POST'])
-def update_prompt(prompt_name):
-    """Elmenti az új prompt verziót (vagy a tone guide-ot)."""
+@app.route('/pipeline', methods=['POST'])
+def update_pipeline():
     data = request.json
-    new_text = data.get('text', '').strip()
+    steps = data.get('steps', [])
+    if not steps:
+        return jsonify({'error': 'A pipeline nem lehet üres'}), 400
+    
+    save_pipeline_data(steps)
+    return jsonify({'success': True, 'message': 'Pipeline sikeresen mentve'})
 
-    if not new_text:
-        return jsonify({'error': 'A prompt szövege nem lehet üres'}), 400
-
-    # Tone guide: egyszerű felülírás, nincs verziókövetés
-    if prompt_name == 'tone_guide':
-        save_tone_guide(new_text)
-        return jsonify({'success': True, 'message': 'Tone guide mentve'})
-
-    if prompt_name not in PROMPT_FILES:
-        return jsonify({'error': 'Ismeretlen prompt neve'}), 400
-
-    save_prompt(prompt_name, new_text)
-    return jsonify({'success': True, 'message': 'Prompt mentve'})
-
-@app.route('/prompts/tone_guide', methods=['GET'])
-def get_tone_guide():
-    """Visszaadja a tone guide szövegét."""
-    return jsonify({'text': load_tone_guide()})
-
-@app.route('/prompts/<prompt_name>/versions', methods=['GET'])
-def get_prompt_versions(prompt_name):
-    """Visszaadja a prompt verzióelőzményeit."""
-    if prompt_name not in PROMPT_FILES:
-        return jsonify({'error': 'Ismeretlen prompt neve'}), 400
-
-    data = load_prompt_data(prompt_name)
+@app.route('/pipeline/versions', methods=['GET'])
+def get_pipeline_versions():
+    data = load_pipeline_data()
     return jsonify({
-        'current': data.get('current', ''),
         'versions': data.get('versions', [])
     })
 
-@app.route('/prompts/<prompt_name>/restore/<int:version_number>', methods=['POST'])
-def restore_prompt_version(prompt_name, version_number):
-    """Visszaállít egy korábbi prompt verziót."""
-    if prompt_name not in PROMPT_FILES:
-        return jsonify({'error': 'Ismeretlen prompt neve'}), 400
-
-    data = load_prompt_data(prompt_name)
+@app.route('/pipeline/restore/<int:version_number>', methods=['POST'])
+def restore_pipeline_version(version_number):
+    data = load_pipeline_data()
     versions = data.get('versions', [])
-
+    
     target = next((v for v in versions if v['version'] == version_number), None)
     if not target:
         return jsonify({'error': f'Nem található {version_number}. verzió'}), 404
-
-    save_prompt(prompt_name, target['text'])
+        
+    save_pipeline_data(target['steps'])
     return jsonify({'success': True, 'message': f'{version_number}. verzió visszaállítva'})
+
+@app.route('/prompts/tone_guide', methods=['GET'])
+def get_tone_guide_route():
+    return jsonify({'text': load_tone_guide()})
+
+@app.route('/prompts/tone_guide', methods=['POST'])
+def update_tone_guide():
+    data = request.json
+    new_text = data.get('text', '').strip()
+    if not new_text:
+        return jsonify({'error': 'A tone guide nem lehet üres'}), 400
+    
+    save_tone_guide(new_text)
+    return jsonify({'success': True, 'message': 'Tone guide mentve'})
+
+@app.route('/variables', methods=['GET'])
+def get_variables():
+    variables = {
+        "Excel változók": {
+            "{ceg_url}": "A cég honlapjának URL-je",
+            "{cikk_cim}": "A cikk H1 címe",
+            "{link_N_kulcsszo}": "Belső link kulcsszava (N = 1-5)",
+            "{link_N_url}": "Belső link URL-je (N = 1-5)",
+            "{korabbi_cikk_url_N}": "Korábbi cikk URL-je (N = 1-2)",
+            "{megjegyzes}": "Egyéb instrukció az Excelből"
+        },
+        "Generált változók": {
+            "{linkek_felsorolasa}": "Automatikus lista a megadott linkekből Markdown formátumban",
+            "{opcionalis_korabbi_cikkek_blokk}": "Korábbi cikkek hivatkozási instrukciója (ha van)",
+            "{megjegyzes_blokk}": "Megjegyzés instrukció (ha van)",
+            "{elvart_linkek}": "A megadott kulcsszavak listája ellenőrzéshez"
+        },
+        "Rendszer változók": {
+            "{tone_guide}": "A Tone Guide teljes szövege",
+            "{aktualis_cikk}": "Az utolsó generáló/javító lépés kimenete (ez lesz a végső cikk)",
+            "{elozo_kimenet}": "A közvetlenül előző lépés teljes GPT válasza",
+            "{lepes_N_kimenet}": "Az N. azonosítójú lépés GPT válasza",
+            "{javitasi_problemak}": "A check lépések által talált hibák listája (csak fix lépésben hasznos)"
+        }
+    }
+    return jsonify(variables)
 
 # ==========================================
 # INDÍTÁS

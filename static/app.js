@@ -1,5 +1,5 @@
 /* ==========================================
-   SEO Cikk Generáló – Frontend logika v4
+   SEO Cikk Generáló – Frontend logika v5 (pipeline)
    ========================================== */
 
 // Állapot
@@ -9,33 +9,28 @@ const state = {
   jobId: null,
   isGenerating: false,
   eventSource: null,
-  // Prompt szerkesztő állapot (tone_guide külön kezelt)
-  promptEditing: { main: false, fact_check: false, link_check: false, format_check: false, fix: false },
-  promptVersions: { main: [], fact_check: [], link_check: [], format_check: [], fix: [] },
-  promptPreviewVersion: { main: null, fact_check: null, link_check: null, format_check: null, fix: null },
-  toneGuideEditing: false
+  toneGuideEditing: false,
+  pipelineVersions: [],
+  previewingPipelineVersion: null
 };
-
-// Prompt nevek (verziókövetéssel)
-const VERSIONED_PROMPTS = ['main', 'fact_check', 'link_check', 'format_check', 'fix'];
 
 // Megjelenítendő oszlopok a táblázatban (szerkeszthető)
 const DISPLAY_COLUMNS = [
-  { key: 'cikk_cim',         label: 'Cikk cím',          width: '200px', type: 'textarea' },
-  { key: 'ceg_url',          label: 'Cég URL',            width: '140px', type: 'input' },
-  { key: 'link_1_kulcsszo',  label: 'Link 1 kulcsszó',   width: '130px', type: 'input' },
-  { key: 'link_1_url',       label: 'Link 1 URL',         width: '140px', type: 'input' },
-  { key: 'link_2_kulcsszo',  label: 'Link 2 kulcsszó',   width: '130px', type: 'input' },
-  { key: 'link_2_url',       label: 'Link 2 URL',         width: '140px', type: 'input' },
-  { key: 'link_3_kulcsszo',  label: 'Link 3 kulcsszó',   width: '130px', type: 'input' },
-  { key: 'link_3_url',       label: 'Link 3 URL',         width: '140px', type: 'input' },
-  { key: 'link_4_kulcsszo',  label: 'Link 4 kulcsszó',   width: '130px', type: 'input' },
-  { key: 'link_4_url',       label: 'Link 4 URL',         width: '140px', type: 'input' },
-  { key: 'link_5_kulcsszo',  label: 'Link 5 kulcsszó',   width: '130px', type: 'input' },
-  { key: 'link_5_url',       label: 'Link 5 URL',         width: '140px', type: 'input' },
-  { key: 'korabbi_cikk_url_1', label: 'Korábbi cikk 1',  width: '140px', type: 'input' },
-  { key: 'korabbi_cikk_url_2', label: 'Korábbi cikk 2',  width: '140px', type: 'input' },
-  { key: 'megjegyzes',       label: 'Megjegyzés',         width: '160px', type: 'textarea' },
+  { key: 'cikk_cim',           label: 'Cikk cím',          width: '200px', type: 'textarea' },
+  { key: 'ceg_url',            label: 'Cég URL',            width: '140px', type: 'input' },
+  { key: 'link_1_kulcsszo',    label: 'Link 1 kulcsszó',   width: '130px', type: 'input' },
+  { key: 'link_1_url',         label: 'Link 1 URL',         width: '140px', type: 'input' },
+  { key: 'link_2_kulcsszo',    label: 'Link 2 kulcsszó',   width: '130px', type: 'input' },
+  { key: 'link_2_url',         label: 'Link 2 URL',         width: '140px', type: 'input' },
+  { key: 'link_3_kulcsszo',    label: 'Link 3 kulcsszó',   width: '130px', type: 'input' },
+  { key: 'link_3_url',         label: 'Link 3 URL',         width: '140px', type: 'input' },
+  { key: 'link_4_kulcsszo',    label: 'Link 4 kulcsszó',   width: '130px', type: 'input' },
+  { key: 'link_4_url',         label: 'Link 4 URL',         width: '140px', type: 'input' },
+  { key: 'link_5_kulcsszo',    label: 'Link 5 kulcsszó',   width: '130px', type: 'input' },
+  { key: 'link_5_url',         label: 'Link 5 URL',         width: '140px', type: 'input' },
+  { key: 'korabbi_cikk_url_1', label: 'Korábbi cikk 1',    width: '140px', type: 'input' },
+  { key: 'korabbi_cikk_url_2', label: 'Korábbi cikk 2',    width: '140px', type: 'input' },
+  { key: 'megjegyzes',         label: 'Megjegyzés',         width: '160px', type: 'textarea' },
 ];
 
 // ==========================================
@@ -46,7 +41,9 @@ document.addEventListener('DOMContentLoaded', () => {
   setupFileInput();
   setupGenerateButton();
   setupAddRowButton();
-  loadPrompts();
+  loadPipeline();
+  loadToneGuide();
+  loadPipelineVersions();
 });
 
 // ==========================================
@@ -172,7 +169,6 @@ function renderTable() {
   const thead = document.getElementById('tableHead');
   const tbody = document.getElementById('tableBody');
 
-  // Fejléc
   thead.innerHTML = `
     <tr>
       <th style="width:40px">#</th>
@@ -215,13 +211,11 @@ function renderTableRows() {
       }
     });
 
-    // Státusz
     cells += `<td>
       <div>${renderStatusBadge(row.status)}</div>
       ${row.message ? `<div class="status-message">${escapeHtml(row.message)}</div>` : ''}
     </td>`;
 
-    // Törlés
     cells += `<td>
       <button class="btn-row-delete" onclick="deleteRow(${idx})" title="Sor törlése">✕</button>
     </td>`;
@@ -233,16 +227,13 @@ function renderTableRows() {
 
 function renderStatusBadge(status) {
   const map = {
-    'Várakozik':    { cls: 'status-waiting', icon: '○' },
-    'Folyamatban':  { cls: 'status-running', icon: '●' },
-    'Kész':         { cls: 'status-done',    icon: '✓' },
-    'Hiba':         { cls: 'status-error',   icon: '✕' },
+    'Várakozik':   { cls: 'status-waiting', icon: '○' },
+    'Folyamatban': { cls: 'status-running', icon: '●' },
+    'Kész':        { cls: 'status-done',    icon: '✓' },
+    'Hiba':        { cls: 'status-error',   icon: '✕' },
   };
   const s = map[status] || map['Várakozik'];
-  return `<span class="status-badge ${s.cls}">
-    <span class="status-dot"></span>
-    ${status}
-  </span>`;
+  return `<span class="status-badge ${s.cls}"><span class="status-dot"></span>${status}</span>`;
 }
 
 function updateCell(rowIdx, colKey, value) {
@@ -311,7 +302,6 @@ async function startGeneration() {
     return;
   }
 
-  // Visszaállítjuk a státuszokat
   state.rows.forEach(row => {
     if (row.status !== 'Kész') {
       row.status = 'Várakozik';
@@ -321,7 +311,6 @@ async function startGeneration() {
   renderTable();
   updateStats();
 
-  // Kiválasztott modell
   const modelSelect = document.getElementById('modelSelect');
   const selectedModel = modelSelect ? modelSelect.value : 'gpt-5.4-mini';
 
@@ -454,176 +443,297 @@ function showDownloadSection(downloadUrl) {
 }
 
 // ==========================================
-// PROMPT PANEL – ACCORDION
+// PIPELINE PANEL – ACCORDION
 // ==========================================
-function togglePromptPanel() {
-  const panel = document.getElementById('promptPanel');
-  const arrow = document.getElementById('accordionArrow');
+function togglePipelinePanel() {
+  const panel = document.getElementById('pipelinePanel');
+  const arrow = document.getElementById('pipelineAccordionArrow');
   const isOpen = panel.style.display !== 'none';
-
-  if (isOpen) {
-    panel.style.display = 'none';
-    arrow.classList.remove('open');
-  } else {
-    panel.style.display = 'block';
-    arrow.classList.add('open');
-  }
+  panel.style.display = isOpen ? 'none' : 'block';
+  arrow.classList.toggle('open', !isOpen);
 }
 
 // ==========================================
-// PROMPT PANEL – FÜLEK
+// PIPELINE BETÖLTÉS
 // ==========================================
-function switchPromptTab(tabName, btnEl) {
-  // Összes tartalom elrejtése
-  document.querySelectorAll('.prompt-content').forEach(el => {
-    el.style.display = 'none';
-    el.classList.remove('active');
-  });
-  // Összes fül inaktív
-  document.querySelectorAll('.prompt-tab').forEach(el => el.classList.remove('active'));
-
-  // Kiválasztott megjelenítése
-  const content = document.getElementById(`tab-${tabName}`);
-  if (content) {
-    content.style.display = 'block';
-    content.classList.add('active');
-  }
-  if (btnEl) btnEl.classList.add('active');
-}
-
-// ==========================================
-// PROMPT BETÖLTÉS
-// ==========================================
-async function loadPrompts() {
+async function loadPipeline() {
   try {
-    const res = await fetch('/prompts');
+    const res = await fetch('/pipeline');
     const data = await res.json();
-
-    // Verziókövetett promptok
-    VERSIONED_PROMPTS.forEach(name => {
-      const ta = document.getElementById(`prompt-${name}`);
-      if (ta && data[name]) {
-        ta.value = data[name];
-      }
-    });
-
-    // Tone guide (külön kezelt)
-    const tgTa = document.getElementById('prompt-tone_guide');
-    if (tgTa && data['tone_guide']) {
-      tgTa.value = data['tone_guide'];
-    }
-
-    // Verzióelőzmények betöltése
-    await loadAllVersions();
-
-  } catch (err) {
-    console.error('Prompt betöltési hiba:', err);
+    renderPipelineSteps(data.steps || []);
+  } catch (e) {
+    console.error('Pipeline betöltési hiba:', e);
   }
 }
 
-async function loadAllVersions() {
-  for (const name of VERSIONED_PROMPTS) {
-    await loadVersionsForPrompt(name);
-  }
-}
-
-async function loadVersionsForPrompt(promptName) {
+async function loadPipelineVersions() {
   try {
-    const res = await fetch(`/prompts/${promptName}/versions`);
+    const res = await fetch('/pipeline/versions');
     const data = await res.json();
-    state.promptVersions[promptName] = data.versions || [];
-    renderVersionSelect(promptName);
-  } catch (err) {
-    console.error(`Verzió betöltési hiba (${promptName}):`, err);
+    state.pipelineVersions = data.versions || [];
+    renderPipelineVersionSelect();
+  } catch (e) {
+    console.error('Pipeline verziók betöltési hiba:', e);
   }
 }
 
-function renderVersionSelect(promptName) {
-  const sel = document.getElementById(`versions-${promptName}`);
+function renderPipelineVersionSelect() {
+  const sel = document.getElementById('pipelineVersionsSelect');
   if (!sel) return;
-
-  const versions = state.promptVersions[promptName];
-  sel.innerHTML = `<option value="">Verzióelőzmények (${versions.length} db)</option>`;
-
-  // Fordított sorrendben (legújabb elöl)
-  [...versions].reverse().forEach(v => {
-    const date = v.saved_at ? v.saved_at.replace('T', ' ') : '';
+  sel.innerHTML = '<option value="">-- Válassz verziót --</option>';
+  [...state.pipelineVersions].reverse().forEach(v => {
     const opt = document.createElement('option');
     opt.value = v.version;
-    opt.textContent = `v${v.version} – ${date}`;
+    opt.textContent = `v${v.version} – ${v.saved_at ? v.saved_at.replace('T', ' ') : ''}`;
     sel.appendChild(opt);
   });
 }
 
-// ==========================================
-// PROMPT SZERKESZTÉS (verziókövetett)
-// ==========================================
-function toggleEdit(promptName) {
-  const ta = document.getElementById(`prompt-${promptName}`);
-  const editBtn = document.getElementById(`edit-btn-${promptName}`);
-  const saveBtn = document.getElementById(`save-btn-${promptName}`);
-
-  const isEditing = state.promptEditing[promptName];
-
-  if (!isEditing) {
-    ta.removeAttribute('readonly');
-    ta.focus();
-    editBtn.textContent = '✕ Mégse';
-    saveBtn.style.display = 'inline-flex';
-    state.promptEditing[promptName] = true;
-    ta.dataset.original = ta.value;
-  } else {
-    ta.setAttribute('readonly', true);
-    ta.value = ta.dataset.original || ta.value;
-    editBtn.textContent = '✏ Szerkesztés';
-    saveBtn.style.display = 'none';
-    state.promptEditing[promptName] = false;
+function previewPipelineVersion(versionNum) {
+  const btn = document.getElementById('restorePipelineBtn');
+  if (!versionNum) {
+    state.previewingPipelineVersion = null;
+    if (btn) btn.style.display = 'none';
+    loadPipeline();
+    return;
+  }
+  const v = state.pipelineVersions.find(x => x.version == versionNum);
+  if (v) {
+    state.previewingPipelineVersion = versionNum;
+    renderPipelineSteps(v.steps);
+    if (btn) btn.style.display = 'inline-flex';
+    showToast(`v${versionNum} előnézet – kattints Visszaállításra a mentéshez`, 'info');
   }
 }
 
-async function savePrompt(promptName) {
-  const ta = document.getElementById(`prompt-${promptName}`);
-  const newText = ta.value.trim();
+async function restorePipelineVersion() {
+  if (!state.previewingPipelineVersion) return;
+  try {
+    const res = await fetch(`/pipeline/restore/${state.previewingPipelineVersion}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message, 'success');
+      state.previewingPipelineVersion = null;
+      const btn = document.getElementById('restorePipelineBtn');
+      if (btn) btn.style.display = 'none';
+      const sel = document.getElementById('pipelineVersionsSelect');
+      if (sel) sel.value = '';
+      await loadPipeline();
+      await loadPipelineVersions();
+    }
+  } catch (e) {
+    showToast('Visszaállítási hiba', 'error');
+  }
+}
 
-  if (!newText) {
-    showToast('A prompt szövege nem lehet üres', 'error');
+async function savePipeline() {
+  const steps = collectPipelineStepsFromDOM();
+  try {
+    const res = await fetch('/pipeline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ steps })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Pipeline sikeresen mentve!', 'success');
+      await loadPipelineVersions();
+    } else {
+      showToast('Hiba: ' + (data.error || 'Ismeretlen hiba'), 'error');
+    }
+  } catch (e) {
+    showToast('Mentési hiba', 'error');
+  }
+}
+
+function collectPipelineStepsFromDOM() {
+  const list = document.getElementById('pipelineStepsList');
+  const stepEls = list.querySelectorAll('.pipeline-step');
+  const steps = [];
+  stepEls.forEach((el, i) => {
+    steps.push({
+      id: parseInt(el.dataset.stepId) || (i + 1),
+      name: el.querySelector('.step-name-input').value,
+      type: el.querySelector('.step-type-select').value,
+      enabled: el.querySelector('.step-enabled-toggle').checked,
+      prompt: el.querySelector('.step-prompt-textarea').value
+    });
+  });
+  return steps;
+}
+
+// ==========================================
+// PIPELINE LÉPÉSEK RENDERELÉS
+// ==========================================
+function renderPipelineSteps(steps) {
+  const list = document.getElementById('pipelineStepsList');
+  if (!list) return;
+  list.innerHTML = '';
+  steps.forEach((step, idx) => {
+    const el = createStepElement(step, idx);
+    list.appendChild(el);
+  });
+}
+
+function createStepElement(step, idx) {
+  const div = document.createElement('div');
+  div.className = `pipeline-step type-step-${step.type}`;
+  div.dataset.stepId = step.id;
+
+  div.innerHTML = `
+    <div class="step-header">
+      <div class="step-header-left">
+        <span class="step-number">${idx + 1}</span>
+        <input type="text" class="step-name-input" value="${escapeHtml(step.name)}" placeholder="Lépés neve" />
+        <select class="step-type-select">
+          <option value="generate" ${step.type === 'generate' ? 'selected' : ''}>generate</option>
+          <option value="check" ${step.type === 'check' ? 'selected' : ''}>check</option>
+          <option value="fix" ${step.type === 'fix' ? 'selected' : ''}>fix</option>
+        </select>
+        <label class="toggle-label" title="Engedélyezve">
+          <input type="checkbox" class="step-enabled-toggle" ${step.enabled ? 'checked' : ''} />
+          <span class="toggle-text">${step.enabled ? 'Engedélyezve' : 'Letiltva'}</span>
+        </label>
+      </div>
+      <div class="step-header-right">
+        <button class="btn btn-secondary btn-xs" onclick="moveStepUp(this)" title="Fel">↑</button>
+        <button class="btn btn-secondary btn-xs" onclick="moveStepDown(this)" title="Le">↓</button>
+        <button class="btn btn-danger btn-xs" onclick="deleteStep(this)" title="Törlés">🗑</button>
+      </div>
+    </div>
+    <div class="step-body">
+      <textarea class="step-prompt-textarea" rows="8" placeholder="Prompt szövege...">${escapeHtml(step.prompt)}</textarea>
+    </div>
+  `;
+
+  const toggle = div.querySelector('.step-enabled-toggle');
+  const toggleText = div.querySelector('.toggle-text');
+  toggle.addEventListener('change', () => {
+    toggleText.textContent = toggle.checked ? 'Engedélyezve' : 'Letiltva';
+  });
+
+  const typeSelect = div.querySelector('.step-type-select');
+  typeSelect.addEventListener('change', () => {
+    div.className = `pipeline-step type-step-${typeSelect.value}`;
+  });
+
+  return div;
+}
+
+function addPipelineStep() {
+  const list = document.getElementById('pipelineStepsList');
+  const currentCount = list.querySelectorAll('.pipeline-step').length;
+  const newStep = {
+    id: Date.now(),
+    name: 'Új lépés',
+    type: 'check',
+    enabled: true,
+    prompt: ''
+  };
+  const el = createStepElement(newStep, currentCount);
+  list.appendChild(el);
+  el.scrollIntoView({ behavior: 'smooth' });
+}
+
+function moveStepUp(btn) {
+  const step = btn.closest('.pipeline-step');
+  const prev = step.previousElementSibling;
+  if (prev) {
+    step.parentNode.insertBefore(step, prev);
+    renumberSteps();
+  }
+}
+
+function moveStepDown(btn) {
+  const step = btn.closest('.pipeline-step');
+  const next = step.nextElementSibling;
+  if (next) {
+    step.parentNode.insertBefore(next, step);
+    renumberSteps();
+  }
+}
+
+function deleteStep(btn) {
+  const step = btn.closest('.pipeline-step');
+  if (confirm('Biztosan törlöd ezt a lépést?')) {
+    step.remove();
+    renumberSteps();
+  }
+}
+
+function renumberSteps() {
+  const list = document.getElementById('pipelineStepsList');
+  const steps = list.querySelectorAll('.pipeline-step');
+  steps.forEach((el, i) => {
+    el.querySelector('.step-number').textContent = i + 1;
+  });
+}
+
+// ==========================================
+// VÁLTOZÓK SÚGÓ
+// ==========================================
+async function toggleVariablesPanel() {
+  const panel = document.getElementById('variablesPanel');
+  const isOpen = panel.style.display !== 'none';
+
+  if (isOpen) {
+    panel.style.display = 'none';
     return;
   }
 
-  try {
-    const res = await fetch(`/prompts/${promptName}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: newText })
-    });
-    const data = await res.json();
+  panel.style.display = 'block';
 
-    if (data.error) {
-      showToast(data.error, 'error');
-      return;
+  const content = document.getElementById('variablesContent');
+  if (content && content.textContent.trim() === 'Betöltés...') {
+    try {
+      const res = await fetch('/variables');
+      const data = await res.json();
+      renderVariables(data);
+    } catch (e) {
+      content.textContent = 'Hiba a változók betöltésekor';
     }
-
-    const editBtn = document.getElementById(`edit-btn-${promptName}`);
-    const saveBtn = document.getElementById(`save-btn-${promptName}`);
-    ta.setAttribute('readonly', true);
-    editBtn.textContent = '✏ Szerkesztés';
-    saveBtn.style.display = 'none';
-    state.promptEditing[promptName] = false;
-
-    await loadVersionsForPrompt(promptName);
-    showToast('Prompt sikeresen mentve', 'success');
-  } catch (err) {
-    showToast('Mentési hiba: ' + err.message, 'error');
   }
 }
 
+function renderVariables(data) {
+  const container = document.getElementById('variablesContent');
+  let html = '';
+  for (const [group, vars] of Object.entries(data)) {
+    html += `<div class="var-group"><h4>${escapeHtml(group)}</h4><table class="var-table">`;
+    for (const [name, desc] of Object.entries(vars)) {
+      html += `<tr><td><code>${escapeHtml(name)}</code></td><td>${escapeHtml(desc)}</td></tr>`;
+    }
+    html += '</table></div>';
+  }
+  container.innerHTML = html;
+}
+
 // ==========================================
-// TONE GUIDE SZERKESZTÉS (nincs verziókövetés)
+// TONE GUIDE PANEL – ACCORDION
 // ==========================================
+function toggleToneGuidePanel() {
+  const panel = document.getElementById('toneGuidePanel');
+  const arrow = document.getElementById('toneGuideAccordionArrow');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  arrow.classList.toggle('open', !isOpen);
+}
+
+async function loadToneGuide() {
+  try {
+    const res = await fetch('/prompts/tone_guide');
+    const data = await res.json();
+    const ta = document.getElementById('toneGuideTextarea');
+    if (ta) ta.value = data.text || '';
+  } catch (e) {
+    console.error('Tone guide betöltési hiba:', e);
+  }
+}
+
 function toggleToneGuideEdit() {
-  const ta = document.getElementById('prompt-tone_guide');
-  const editBtn = document.getElementById('edit-btn-tone_guide');
-  const saveBtn = document.getElementById('save-btn-tone_guide');
+  const ta = document.getElementById('toneGuideTextarea');
+  const editBtn = document.getElementById('editToneGuideBtn');
+  const saveBtn = document.getElementById('saveToneGuideBtn');
 
   if (!state.toneGuideEditing) {
     ta.removeAttribute('readonly');
@@ -642,7 +752,7 @@ function toggleToneGuideEdit() {
 }
 
 async function saveToneGuide() {
-  const ta = document.getElementById('prompt-tone_guide');
+  const ta = document.getElementById('toneGuideTextarea');
   const newText = ta.value.trim();
 
   if (!newText) {
@@ -663,91 +773,16 @@ async function saveToneGuide() {
       return;
     }
 
-    const editBtn = document.getElementById('edit-btn-tone_guide');
-    const saveBtn = document.getElementById('save-btn-tone_guide');
+    const editBtn = document.getElementById('editToneGuideBtn');
+    const saveBtn = document.getElementById('saveToneGuideBtn');
     ta.setAttribute('readonly', true);
     editBtn.textContent = '✏ Szerkesztés';
     saveBtn.style.display = 'none';
     state.toneGuideEditing = false;
 
-    showToast('Tone guide sikeresen mentve', 'success');
+    showToast('Tone Guide sikeresen mentve', 'success');
   } catch (err) {
     showToast('Mentési hiba: ' + err.message, 'error');
-  }
-}
-
-// ==========================================
-// VERZIÓELŐZMÉNYEK
-// ==========================================
-function previewVersion(promptName, versionNumber) {
-  if (!versionNumber) {
-    const restoreBtn = document.getElementById(`restore-${promptName}`);
-    if (restoreBtn) restoreBtn.style.display = 'none';
-    state.promptPreviewVersion[promptName] = null;
-    loadCurrentPrompt(promptName);
-    return;
-  }
-
-  const version = state.promptVersions[promptName].find(
-    v => v.version === parseInt(versionNumber)
-  );
-
-  if (!version) return;
-
-  const ta = document.getElementById(`prompt-${promptName}`);
-  if (ta) {
-    ta.value = version.text;
-    if (state.promptEditing[promptName]) {
-      toggleEdit(promptName);
-    }
-  }
-
-  const restoreBtn = document.getElementById(`restore-${promptName}`);
-  if (restoreBtn) restoreBtn.style.display = 'inline-flex';
-
-  state.promptPreviewVersion[promptName] = parseInt(versionNumber);
-}
-
-async function loadCurrentPrompt(promptName) {
-  try {
-    const res = await fetch('/prompts');
-    const data = await res.json();
-    const ta = document.getElementById(`prompt-${promptName}`);
-    if (ta && data[promptName]) ta.value = data[promptName];
-  } catch (err) {
-    console.error('Prompt újratöltési hiba:', err);
-  }
-}
-
-async function restoreVersion(promptName) {
-  const versionNumber = state.promptPreviewVersion[promptName];
-  if (!versionNumber) return;
-
-  try {
-    const res = await fetch(`/prompts/${promptName}/restore/${versionNumber}`, {
-      method: 'POST'
-    });
-    const data = await res.json();
-
-    if (data.error) {
-      showToast(data.error, 'error');
-      return;
-    }
-
-    const restoreBtn = document.getElementById(`restore-${promptName}`);
-    if (restoreBtn) restoreBtn.style.display = 'none';
-
-    const sel = document.getElementById(`versions-${promptName}`);
-    if (sel) sel.value = '';
-
-    state.promptPreviewVersion[promptName] = null;
-
-    await loadCurrentPrompt(promptName);
-    await loadVersionsForPrompt(promptName);
-
-    showToast(`v${versionNumber} sikeresen visszaállítva`, 'success');
-  } catch (err) {
-    showToast('Visszaállítási hiba: ' + err.message, 'error');
   }
 }
 
