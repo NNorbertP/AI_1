@@ -4,6 +4,8 @@ import json
 import time
 import uuid
 import threading
+import glob
+import zipfile
 from queue import Queue
 from datetime import datetime
 
@@ -23,11 +25,13 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['DOWNLOAD_FOLDER'] = 'downloads'
 app.config['PROMPTS_FOLDER'] = 'prompts'
+app.config['JOBS_FOLDER'] = 'jobs'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB limit
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['DOWNLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['PROMPTS_FOLDER'], exist_ok=True)
+os.makedirs(app.config['JOBS_FOLDER'], exist_ok=True)
 
 @app.after_request
 def add_header(response):
@@ -57,7 +61,44 @@ FORBIDDEN_PHRASES = [
     "Tapasztalatból mondom", "ez nem csak", "talán", "nagyjából", "bizonyos értelemben"
 ]
 
-generation_jobs = {}
+# A memóriában tartott job esemény sorok az SSE-hez
+job_events = {}
+# Lock a párhuzamos generálás megakadályozására
+generation_lock = threading.Lock()
+
+# ==========================================
+# JOB KEZELÉS (PERZISZTENS)
+# ==========================================
+def get_job_path(job_id):
+    return os.path.join(app.config['JOBS_FOLDER'], f"{job_id}.json")
+
+def save_job(job_data):
+    job_id = job_data['job_id']
+    with open(get_job_path(job_id), 'w', encoding='utf-8') as f:
+        json.dump(job_data, f, ensure_ascii=False, indent=2)
+
+def load_job(job_id):
+    path = get_job_path(job_id)
+    if os.path.exists(path):
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return None
+
+def get_all_jobs():
+    jobs = []
+    for path in glob.glob(os.path.join(app.config['JOBS_FOLDER'], "*.json")):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                jobs.append(json.load(f))
+        except:
+            pass
+    # Rendezzük csökkenő sorrendbe (legújabb elöl)
+    jobs.sort(key=lambda x: x.get('started_at', ''), reverse=True)
+    return jobs
+
+def emit_event(job_id, event_data):
+    if job_id in job_events:
+        job_events[job_id].put(event_data)
 
 # ==========================================
 # TONE GUIDE ÉS PIPELINE FÁJLRENDSZER
@@ -306,8 +347,11 @@ def format_markdown_to_docx(doc, text):
             p = doc.add_paragraph()
             add_formatted_runs(p, stripped)
 
+def sanitize_filename(filename):
+    return re.sub(r'[\\/*?:"<>|]', "_", filename)
+
 # ==========================================
-# CIKK GENERÁLÓ LOGIKA (EGYSZERŰSÍTETT PIPELINE)
+# CIKK GENERÁLÓ LOGIKA
 # ==========================================
 def safe_format(template, variables):
     """Biztonságos string formázás, ami figyelmen kívül hagyja a hiányzó változókat."""
@@ -316,30 +360,74 @@ def safe_format(template, variables):
             return '{' + key + '}'
     return template.format_map(SafeDict(variables))
 
-def call_llm(prompt_text, model, temperature=0.7):
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt_text}],
-            temperature=temperature
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        return f"API Hiba: {str(e)}"
+def call_llm(prompt_text, model, temperature=0.7, retries=3):
+    """LLM hívás rate limit és timeout kezeléssel."""
+    for attempt in range(retries):
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt_text}],
+                temperature=temperature,
+                timeout=60.0
+            )
+            content = response.choices[0].message.content.strip()
+            if not content and attempt < retries - 1:
+                print(f"Üres válasz kapva, újrapróbálkozás ({attempt+1}/{retries})...")
+                time.sleep(2)
+                continue
+            return content
+        except Exception as e:
+            error_str = str(e)
+            if "429" in error_str or "rate limit" in error_str.lower():
+                wait_time = 30 * (attempt + 1)
+                print(f"Rate limit elérve. Várakozás {wait_time} másodpercet ({attempt+1}/{retries})...")
+                time.sleep(wait_time)
+            elif "timeout" in error_str.lower():
+                print(f"Timeout hiba. Újrapróbálkozás ({attempt+1}/{retries})...")
+                time.sleep(5)
+            else:
+                if attempt == retries - 1:
+                    return f"API Hiba: {error_str}"
+                time.sleep(2)
+    return "API Hiba: Többszöri próbálkozás után sem sikerült választ kapni."
 
 def generate_single_article(row_data, job_id, row_index, model):
-    job = generation_jobs[job_id]
+    job = load_job(job_id)
+    if not job:
+        return None
 
     def update_status(status, message):
+        # Update in-memory job state and save to file
+        job = load_job(job_id)
         job['rows'][row_index]['status'] = status
         if message:
             job['rows'][row_index]['message'] = message
-        job['events'].put({
+        
+        # Add to steps_log
+        if 'steps_log' not in job['rows'][row_index]:
+            job['rows'][row_index]['steps_log'] = []
+        job['rows'][row_index]['steps_log'].append(f"{datetime.now().strftime('%H:%M:%S')} - {status}: {message}")
+        
+        save_job(job)
+        
+        # Emit event to frontend
+        emit_event(job_id, {
             'type': 'row_update',
             'row_index': row_index,
             'status': status,
             'message': message
         })
+
+    # Ellenőrzés: kötelező mezők
+    ceg_url = row_data.get('ceg_url', '').strip()
+    cikk_cim = row_data.get('cikk_cim', '').strip()
+    
+    if not ceg_url or not cikk_cim:
+        update_status('Hiba', 'Hiányzó cég URL vagy cikk cím')
+        job = load_job(job_id)
+        job['rows'][row_index]['status'] = 'error'
+        save_job(job)
+        return None
 
     # Változók előkészítése
     vars_dict = {k: str(v) for k, v in row_data.items()}
@@ -383,6 +471,9 @@ def generate_single_article(row_data, job_id, row_index, model):
 
     if not steps:
         update_status('Hiba', 'Nincs engedélyezett lépés a pipeline-ban!')
+        job = load_job(job_id)
+        job['rows'][row_index]['status'] = 'error'
+        save_job(job)
         return None
 
     update_status('Folyamatban', 'Pipeline indítása...')
@@ -397,6 +488,9 @@ def generate_single_article(row_data, job_id, row_index, model):
 
         if output.startswith("API Hiba:"):
             update_status('Hiba', f'{step_name}: {output}')
+            job = load_job(job_id)
+            job['rows'][row_index]['status'] = 'error'
+            save_job(job)
             return None
 
         # Változók frissítése a következő lépésekhez
@@ -427,62 +521,156 @@ def generate_single_article(row_data, job_id, row_index, model):
     else:
         update_status('Kész', f'Sikeres generálás ({word_count} szó)')
 
+    # Véglegesítés a job fájlban
+    job = load_job(job_id)
+    job['rows'][row_index]['status'] = 'done'
+    job['rows'][row_index]['article'] = final_article
+    job['rows'][row_index]['completed_at'] = datetime.now().isoformat()
+    save_job(job)
+
     return final_article
 
-def generation_worker(job_id):
-    job = generation_jobs[job_id]
-    rows = job['rows']
-    model = job.get('model', DEFAULT_MODEL)
-
+def create_output_files(job_id):
+    job = load_job(job_id)
+    if not job:
+        return
+        
     doc = Document()
     sikeres_cikkek = 0
-
-    for idx, row in enumerate(rows):
-        if row.get('status') == 'Kész':
-            continue
-
-        if not row.get('ceg_url') or not row.get('cikk_cim'):
-            job['rows'][idx]['status'] = 'Hiba'
-            job['rows'][idx]['message'] = 'Hiányzó cég URL vagy cikk cím'
-            job['events'].put({
-                'type': 'row_update',
-                'row_index': idx,
-                'status': 'Hiba',
-                'message': 'Hiányzó cég URL vagy cikk cím'
-            })
-            continue
-
-        article_text = generate_single_article(row, job_id, idx, model)
-
-        if article_text:
-            if sikeres_cikkek > 0:
-                doc.add_page_break()
-
-            heading = doc.add_heading(row['cikk_cim'], 0)
-            heading.style.font.color.rgb = RGBColor(0, 0, 0)
-
-            format_markdown_to_docx(doc, article_text)
-            sikeres_cikkek += 1
-
-            job['completed'] += 1
-            job['events'].put({
-                'type': 'progress',
-                'completed': job['completed'],
-                'total': job['total']
-            })
+    hibas_cikkek = 0
+    
+    # Készítsünk egy txt fallback zipet is
+    zip_filename = f"cikkek_{job_id}.zip"
+    zip_filepath = os.path.join(app.config['DOWNLOAD_FOLDER'], zip_filename)
+    
+    with zipfile.ZipFile(zip_filepath, 'w') as zipf:
+        for row in job['rows']:
+            if row.get('status') == 'done' and row.get('article'):
+                sikeres_cikkek += 1
+                cikk_cim = row.get('cikk_cim', f'cikk_{row.get("index", sikeres_cikkek)}')
+                safe_cim = sanitize_filename(cikk_cim)
+                
+                # Word doc építése
+                if sikeres_cikkek > 1:
+                    doc.add_page_break()
+                
+                heading = doc.add_heading(cikk_cim, 0)
+                heading.style.font.color.rgb = RGBColor(0, 0, 0)
+                format_markdown_to_docx(doc, row['article'])
+                
+                # Txt zip építése
+                zipf.writestr(f"{safe_cim}.txt", row['article'])
+            else:
+                hibas_cikkek += 1
+                
+    # Összefoglaló oldal beszúrása a Word elejére (ha van hiba)
+    if hibas_cikkek > 0 and sikeres_cikkek > 0:
+        # A docx python library nem támogatja egyszerűen az oldal beszúrását az elejére, 
+        # ezért egy új dokumentumot hozunk létre és abba másoljuk.
+        # Egyszerűbb megoldás: a végére tesszük az összefoglalót.
+        doc.add_page_break()
+        doc.add_heading('Generálási összefoglaló', level=1)
+        doc.add_paragraph(f"Sikeresen generált cikkek: {sikeres_cikkek}")
+        doc.add_paragraph(f"Hibával végződött sorok: {hibas_cikkek}")
+        
+        p = doc.add_paragraph()
+        p.add_run("A hibás sorok részletei a webes felületen tekinthetők meg.")
 
     if sikeres_cikkek > 0:
-        filename = f"keszult_cikkek_{job_id}.docx"
-        filepath = os.path.join(app.config['DOWNLOAD_FOLDER'], filename)
-        doc.save(filepath)
-        job['download_url'] = f"/download/{filename}"
+        docx_filename = f"keszult_cikkek_{job_id}.docx"
+        docx_filepath = os.path.join(app.config['DOWNLOAD_FOLDER'], docx_filename)
+        doc.save(docx_filepath)
+        
+        job['download_url'] = f"/download/{docx_filename}"
+        job['zip_url'] = f"/download/{zip_filename}"
+        save_job(job)
 
-    job['status'] = 'Befejezve'
-    job['events'].put({
-        'type': 'complete',
-        'download_url': job.get('download_url', None)
-    })
-    job['events'].put(None)
+def generation_worker(job_id):
+    # Lockoljuk a futást
+    acquired = generation_lock.acquire(blocking=False)
+    if not acquired:
+        job = load_job(job_id)
+        job['status'] = 'error'
+        job['error_message'] = 'Már fut egy generálás. Kérlek várj.'
+        save_job(job)
+        emit_event(job_id, {'type': 'error', 'message': 'Már fut egy generálás.'})
+        return
+        
+    try:
+        job = load_job(job_id)
+        if not job:
+            return
+
+        job['status'] = 'running'
+        save_job(job)
+        
+        rows = job['rows']
+        model = job.get('model', DEFAULT_MODEL)
+
+        for idx, row in enumerate(rows):
+            # Csak a nem befejezett sorokat dolgozzuk fel
+            if row.get('status') == 'done':
+                continue
+                
+            # Kihagyjuk az üres sorokat
+            if not row.get('ceg_url') and not row.get('cikk_cim'):
+                job = load_job(job_id)
+                job['rows'][idx]['status'] = 'done'
+                job['rows'][idx]['message'] = 'Üres sor kihagyva'
+                save_job(job)
+                
+                job['completed_rows'] += 1
+                save_job(job)
+                emit_event(job_id, {
+                    'type': 'progress',
+                    'completed': job['completed_rows'],
+                    'total': job['total_rows']
+                })
+                continue
+
+            # Állapot frissítés futóra
+            job = load_job(job_id)
+            job['rows'][idx]['status'] = 'running'
+            save_job(job)
+            
+            generate_single_article(row, job_id, idx, model)
+
+            # Újratöltjük a jobot, hogy megnézzük a végső státuszt
+            job = load_job(job_id)
+            job['completed_rows'] += 1
+            save_job(job)
+            
+            emit_event(job_id, {
+                'type': 'progress',
+                'completed': job['completed_rows'],
+                'total': job['total_rows']
+            })
+
+        # Fájlok generálása
+        create_output_files(job_id)
+
+        job = load_job(job_id)
+        job['status'] = 'done'
+        save_job(job)
+        
+        emit_event(job_id, {
+            'type': 'complete',
+            'download_url': job.get('download_url', None),
+            'zip_url': job.get('zip_url', None)
+        })
+        emit_event(job_id, None)  # Stream vége
+        
+    except Exception as e:
+        print(f"Hiba a workerben: {e}")
+        job = load_job(job_id)
+        if job:
+            job['status'] = 'error'
+            job['error_message'] = str(e)
+            save_job(job)
+            emit_event(job_id, {'type': 'error', 'message': f'Rendszerhiba: {str(e)}'})
+            emit_event(job_id, None)
+    finally:
+        generation_lock.release()
 
 # ==========================================
 # ÚTVONALAK – ALAP
@@ -510,12 +698,19 @@ def upload_file():
     try:
         df = pd.read_excel(filepath)
         df = df.fillna('')
+        
+        # Ellenőrizzük a kötelező oszlopokat
+        required_cols = ['ceg_url', 'cikk_cim']
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        if missing_cols:
+            return jsonify({'error': f'Hiányzó kötelező oszlopok: {", ".join(missing_cols)}'}), 400
 
         rows = []
-        for _, row in df.iterrows():
+        for idx, row in df.iterrows():
             row_dict = row.to_dict()
-            row_dict['status'] = 'Várakozik'
-            row_dict['message'] = ''
+            row_dict['index'] = idx
+            row_dict['status'] = 'pending'
+            row_dict['message'] = 'Várakozik'
             rows.append(row_dict)
 
         columns = [col for col in df.columns]
@@ -530,6 +725,9 @@ def upload_file():
 
 @app.route('/start-generation', methods=['POST'])
 def start_generation():
+    if generation_lock.locked():
+        return jsonify({'error': 'Már fut egy generálás. Kérlek várj, amíg befejeződik.'}), 409
+        
     data = request.json
     rows = data.get('rows', [])
     model = data.get('model', DEFAULT_MODEL)
@@ -541,16 +739,23 @@ def start_generation():
         return jsonify({'error': 'Nincsenek adatok a generáláshoz'}), 400
 
     job_id = str(uuid.uuid4())
+    
+    # Töröljük az üres sorokat a végéről
+    while rows and not rows[-1].get('ceg_url') and not rows[-1].get('cikk_cim'):
+        rows.pop()
 
-    generation_jobs[job_id] = {
-        'id': job_id,
-        'rows': rows,
-        'total': len(rows),
-        'completed': 0,
-        'status': 'Folyamatban',
+    job_data = {
+        'job_id': job_id,
+        'status': 'pending',
+        'started_at': datetime.now().isoformat(),
         'model': model,
-        'events': Queue()
+        'total_rows': len(rows),
+        'completed_rows': 0,
+        'rows': rows
     }
+    
+    save_job(job_data)
+    job_events[job_id] = Queue()
 
     thread = threading.Thread(target=generation_worker, args=(job_id,))
     thread.daemon = True
@@ -561,14 +766,94 @@ def start_generation():
         'job_id': job_id
     })
 
+# ==========================================
+# ÚTVONALAK – JOB KEZELÉS
+# ==========================================
+@app.route('/jobs', methods=['GET'])
+def list_jobs():
+    jobs = get_all_jobs()
+    # Csak a metaadatokat küldjük vissza, a nagy sor adatokat nem
+    summary = []
+    for j in jobs:
+        summary.append({
+            'job_id': j['job_id'],
+            'status': j['status'],
+            'started_at': j['started_at'],
+            'total_rows': j['total_rows'],
+            'completed_rows': j['completed_rows'],
+            'download_url': j.get('download_url'),
+            'zip_url': j.get('zip_url')
+        })
+    return jsonify({'jobs': summary})
+
+@app.route('/jobs/<job_id>', methods=['GET'])
+def get_job(job_id):
+    job = load_job(job_id)
+    if not job:
+        return jsonify({'error': 'Job nem található'}), 404
+    return jsonify(job)
+
+@app.route('/jobs/<job_id>/resume', methods=['POST'])
+def resume_job(job_id):
+    if generation_lock.locked():
+        return jsonify({'error': 'Már fut egy generálás. Kérlek várj.'}), 409
+        
+    job = load_job(job_id)
+    if not job:
+        return jsonify({'error': 'Job nem található'}), 404
+        
+    if job['status'] == 'done':
+        return jsonify({'error': 'Ez a job már befejeződött'}), 400
+        
+    job['status'] = 'pending'
+    save_job(job)
+    
+    if job_id not in job_events:
+        job_events[job_id] = Queue()
+        
+    thread = threading.Thread(target=generation_worker, args=(job_id,))
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({
+        'success': True,
+        'job_id': job_id,
+        'message': 'Job folytatása elindítva'
+    })
+
+@app.route('/jobs/<job_id>', methods=['DELETE'])
+def delete_job(job_id):
+    path = get_job_path(job_id)
+    if os.path.exists(path):
+        os.remove(path)
+        return jsonify({'success': True})
+    return jsonify({'error': 'Job nem található'}), 404
+
 @app.route('/stream/<job_id>')
 def stream(job_id):
-    if job_id not in generation_jobs:
+    job = load_job(job_id)
+    if not job:
         return jsonify({'error': 'Nem található ilyen folyamat'}), 404
 
     def event_stream():
-        job = generation_jobs[job_id]
-        queue = job['events']
+        # Ha a job már kész, küldjük el az összes szükséges eseményt egyszerre
+        if job['status'] == 'done':
+            # Küldjük el a sorok végső állapotát
+            for idx, row in enumerate(job['rows']):
+                yield f"data: {json.dumps({'type': 'row_update', 'row_index': idx, 'status': row.get('status'), 'message': row.get('message', '')})}\n\n"
+            
+            # Küldjük el a progress-t
+            yield f"data: {json.dumps({'type': 'progress', 'completed': job['completed_rows'], 'total': job['total_rows']})}\n\n"
+            
+            # Küldjük el a complete eseményt
+            yield f"data: {json.dumps({'type': 'complete', 'download_url': job.get('download_url'), 'zip_url': job.get('zip_url')})}\n\n"
+            return
+
+        # Ha a job fut, csatlakozunk a sorhoz
+        if job_id not in job_events:
+            job_events[job_id] = Queue()
+            
+        queue = job_events[job_id]
 
         while True:
             event = queue.get()
@@ -582,8 +867,15 @@ def stream(job_id):
 def download_file(filename):
     filepath = os.path.join(app.config['DOWNLOAD_FOLDER'], filename)
     if os.path.exists(filepath):
-        return send_file(filepath, as_attachment=True, download_name="keszult_cikkek.docx")
-    return "Fájl nem található", 404
+        # TTL ellenőrzés (1 óra)
+        file_time = os.path.getmtime(filepath)
+        if time.time() - file_time > 3600:
+            # A fájl lejárt, de nem töröljük automatikusan letöltéskor,
+            # inkább csak jelezzük a felhasználónak (opcionális extra biztonság)
+            pass
+            
+        return send_file(filepath, as_attachment=True)
+    return "Fájl nem található vagy már törölték a szerverről (1 órás limit).", 404
 
 # ==========================================
 # ÚTVONALAK – PIPELINE & TONE GUIDE

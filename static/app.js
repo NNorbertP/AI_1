@@ -1,5 +1,5 @@
 /* ==========================================
-   SEO Cikk Generáló – app.js v6
+   SEO Cikk Generáló – app.js v8
    ========================================== */
 
 // ==========================================
@@ -12,6 +12,7 @@ let eventSource = null;
 let pipelineSteps = [];
 let pipelineVersions = [];
 let nextStepId = 100;
+let pendingResumeJobId = null;
 
 // ==========================================
 // INICIALIZÁLÁS
@@ -20,6 +21,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupFileInput();
   loadPipeline();
   loadToneGuide();
+  checkForIncompleteJobs();
+  loadJobHistory();
 });
 
 // ==========================================
@@ -49,8 +52,9 @@ function toggleAccordion(name) {
 
   const isOpen = body.classList.contains('open');
   body.classList.toggle('open', !isOpen);
+  body.classList.toggle('hidden', isOpen);
   arrow.classList.toggle('open', !isOpen);
-  header.classList.toggle('open', !isOpen);
+  if (header) header.classList.toggle('open', !isOpen);
 }
 
 // ==========================================
@@ -131,14 +135,11 @@ function renderTable() {
   const thead = document.getElementById('tableHead');
   const tbody = document.getElementById('tableBody');
 
-  // Megjelenítendő oszlopok: az Excelből jövők + státusz + törlés
   const cols = tableColumns.filter(c => DISPLAY_COLUMNS.includes(c));
   if (cols.length === 0) {
-    // Ha nincs egyezés, mutassuk az első 6 oszlopot
     cols.push(...tableColumns.slice(0, 6));
   }
 
-  // Fejléc
   thead.innerHTML = `<tr>
     <th>#</th>
     ${cols.map(c => `<th>${formatColName(c)}</th>`).join('')}
@@ -147,7 +148,6 @@ function renderTable() {
     <th></th>
   </tr>`;
 
-  // Sorok
   tbody.innerHTML = '';
   tableData.forEach((row, idx) => {
     const tr = document.createElement('tr');
@@ -162,8 +162,9 @@ function renderTable() {
         placeholder="${formatColName(col)}"></td>`;
     });
 
-    const statusClass = getStatusClass(row.status || 'Várakozik');
-    cells += `<td><span class="status-badge ${statusClass}" id="status-${idx}">${row.status || 'Várakozik'}</span></td>`;
+    const statusClass = getStatusClass(row.status || 'pending');
+    const statusLabel = getStatusLabel(row.status || 'pending');
+    cells += `<td><span class="status-badge ${statusClass}" id="status-${idx}">${statusLabel}</span></td>`;
     cells += `<td style="font-size:11px;color:#718096;max-width:200px;word-break:break-word" id="msg-${idx}">${escHtml(row.message || '')}</td>`;
     cells += `<td><button class="btn-row-delete" onclick="deleteRow(${idx})" title="Sor törlése">✕</button></td>`;
 
@@ -181,11 +182,19 @@ function escHtml(str) {
 }
 
 function getStatusClass(status) {
-  if (status === 'Várakozik') return 'status-waiting';
-  if (status === 'Folyamatban') return 'status-running';
-  if (status === 'Kész') return 'status-done';
-  if (status === 'Hiba') return 'status-error';
+  if (!status || status === 'pending' || status === 'Várakozik') return 'status-waiting';
+  if (status === 'running' || status === 'Folyamatban') return 'status-running';
+  if (status === 'done' || status === 'Kész') return 'status-done';
+  if (status === 'error' || status === 'Hiba') return 'status-error';
   return 'status-waiting';
+}
+
+function getStatusLabel(status) {
+  if (!status || status === 'pending') return 'Várakozik';
+  if (status === 'running') return 'Folyamatban';
+  if (status === 'done') return 'Kész';
+  if (status === 'error') return 'Hiba';
+  return status; // Ha már lokalizált, visszaadjuk
 }
 
 function updateCell(rowIdx, col, value) {
@@ -198,7 +207,7 @@ function deleteRow(idx) {
 }
 
 function addEmptyRow() {
-  const newRow = { status: 'Várakozik', message: '' };
+  const newRow = { status: 'pending', message: '' };
   tableColumns.forEach(col => { newRow[col] = ''; });
   if (tableColumns.length === 0) {
     DISPLAY_COLUMNS.forEach(col => { newRow[col] = ''; });
@@ -221,14 +230,15 @@ async function startGeneration() {
 
   // Reset státuszok
   tableData.forEach(row => {
-    if (row.status !== 'Kész') {
-      row.status = 'Várakozik';
+    if (row.status !== 'done') {
+      row.status = 'pending';
       row.message = '';
     }
   });
   renderTable();
 
-  document.getElementById('startBtn').disabled = true;
+  setGenerationRunning(true);
+
   document.getElementById('progressSection').classList.remove('hidden');
   document.getElementById('downloadSection').classList.remove('visible');
 
@@ -244,7 +254,7 @@ async function startGeneration() {
 
     if (data.error) {
       showToast(data.error, 'error');
-      document.getElementById('startBtn').disabled = false;
+      setGenerationRunning(false);
       return;
     }
 
@@ -252,7 +262,17 @@ async function startGeneration() {
     listenToSSE(currentJobId);
   } catch (err) {
     showToast('Hiba a generálás indításakor: ' + err.message, 'error');
-    document.getElementById('startBtn').disabled = false;
+    setGenerationRunning(false);
+  }
+}
+
+function setGenerationRunning(running) {
+  const startBtn = document.getElementById('startBtn');
+  const notice = document.getElementById('generationRunningNotice');
+  startBtn.disabled = running;
+  if (notice) {
+    if (running) notice.classList.remove('hidden');
+    else notice.classList.add('hidden');
   }
 }
 
@@ -270,10 +290,9 @@ function listenToSSE(jobId) {
         tableData[idx].status = event.status;
         tableData[idx].message = event.message || '';
       }
-      // Státusz badge frissítése
       const statusEl = document.getElementById(`status-${idx}`);
       if (statusEl) {
-        statusEl.textContent = event.status;
+        statusEl.textContent = getStatusLabel(event.status);
         statusEl.className = `status-badge ${getStatusClass(event.status)}`;
       }
       const msgEl = document.getElementById(`msg-${idx}`);
@@ -286,24 +305,37 @@ function listenToSSE(jobId) {
 
     if (event.type === 'complete') {
       eventSource.close();
-      document.getElementById('startBtn').disabled = false;
+      setGenerationRunning(false);
+      hideReconnectBanner();
+
+      const dlSection = document.getElementById('downloadSection');
+      const dlBtn = document.getElementById('downloadBtn');
+      const dlZipBtn = document.getElementById('downloadZipBtn');
 
       if (event.download_url) {
-        const dlSection = document.getElementById('downloadSection');
-        const dlBtn = document.getElementById('downloadBtn');
         dlBtn.href = event.download_url;
         dlSection.classList.add('visible');
         showToast('Generálás kész! A Word dokumentum letölthető.', 'success');
-      } else {
-        showToast('Generálás befejezve (nincs letölthető fájl).', 'info');
       }
+      if (event.zip_url && dlZipBtn) {
+        dlZipBtn.href = event.zip_url;
+        dlZipBtn.classList.remove('hidden');
+      }
+      
+      // Frissítsük a job előzményeket
+      loadJobHistory();
+    }
+
+    if (event.type === 'error') {
+      showToast('Hiba: ' + event.message, 'error');
+      setGenerationRunning(false);
     }
   };
 
   eventSource.onerror = () => {
     eventSource.close();
-    document.getElementById('startBtn').disabled = false;
-    showToast('SSE kapcsolat megszakadt.', 'error');
+    // Ne állítsuk le a gombokat – a szerveren futhat még
+    showReconnectBanner('A kapcsolat megszakadt. A generálás a szerveren folytatódhat.');
   };
 }
 
@@ -312,6 +344,182 @@ function updateProgress(completed, total) {
   document.getElementById('progressText').textContent = `${completed} / ${total} cikk kész`;
   document.getElementById('progressPct').textContent = `${pct}%`;
   document.getElementById('progressBar').style.width = `${pct}%`;
+}
+
+// ==========================================
+// KAPCSOLATMEGSZAKADÁS KEZELÉS
+// ==========================================
+function showReconnectBanner(message) {
+  const banner = document.getElementById('reconnectBanner');
+  const msg = document.getElementById('reconnectMessage');
+  if (banner) {
+    if (message && msg) msg.textContent = message;
+    banner.classList.remove('hidden');
+  }
+}
+
+function hideReconnectBanner() {
+  const banner = document.getElementById('reconnectBanner');
+  if (banner) banner.classList.add('hidden');
+}
+
+function reconnectToStream() {
+  if (!currentJobId) {
+    showToast('Nincs aktív job azonosító.', 'error');
+    return;
+  }
+  showToast('Újracsatlakozás...', 'info');
+  listenToSSE(currentJobId);
+  hideReconnectBanner();
+}
+
+async function resumeCurrentJob() {
+  const jobId = currentJobId || pendingResumeJobId;
+  if (!jobId) {
+    showToast('Nincs folytatható job.', 'error');
+    return;
+  }
+  await doResumeJob(jobId);
+  hideReconnectBanner();
+}
+
+async function doResumeJob(jobId) {
+  try {
+    const res = await fetch(`/jobs/${jobId}/resume`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      currentJobId = jobId;
+      showToast('Generálás folytatása elindítva...', 'info');
+      setGenerationRunning(true);
+      document.getElementById('progressSection').classList.remove('hidden');
+      listenToSSE(jobId);
+    } else {
+      showToast(data.error || 'Hiba a folytatásnál', 'error');
+    }
+  } catch (err) {
+    showToast('Hiba: ' + err.message, 'error');
+  }
+}
+
+// ==========================================
+// JOB ELŐZMÉNYEK
+// ==========================================
+async function checkForIncompleteJobs() {
+  try {
+    const res = await fetch('/jobs');
+    const data = await res.json();
+    const jobs = data.jobs || [];
+    
+    // Keressük a félbemaradt jobokat (running/pending státuszú, de nem az aktuális)
+    const incompleteJobs = jobs.filter(j => 
+      (j.status === 'running' || j.status === 'pending') && j.job_id !== currentJobId
+    );
+    
+    if (incompleteJobs.length > 0) {
+      const latest = incompleteJobs[0];
+      pendingResumeJobId = latest.job_id;
+      const completed = latest.completed_rows || 0;
+      const total = latest.total_rows || 0;
+      
+      document.getElementById('resumeModalText').textContent = 
+        `Találtunk egy félbemaradt generálást (${completed}/${total} cikk kész). Folytatod?`;
+      document.getElementById('resumeModal').classList.add('open');
+    }
+  } catch (err) {
+    console.error('Job ellenőrzési hiba:', err);
+  }
+}
+
+async function loadJobHistory() {
+  try {
+    const res = await fetch('/jobs');
+    const data = await res.json();
+    const jobs = data.jobs || [];
+    
+    const badge = document.getElementById('jobCountBadge');
+    if (badge) {
+      if (jobs.length > 0) {
+        badge.textContent = jobs.length;
+        badge.style.display = 'inline-flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+    
+    renderJobHistory(jobs);
+  } catch (err) {
+    console.error('Job history betöltési hiba:', err);
+  }
+}
+
+function renderJobHistory(jobs) {
+  const container = document.getElementById('jobHistoryList');
+  if (!container) return;
+  
+  if (jobs.length === 0) {
+    container.innerHTML = '<p style="color:#718096; padding:12px 0">Még nincs korábbi generálás.</p>';
+    return;
+  }
+  
+  container.innerHTML = '';
+  jobs.forEach(job => {
+    const div = document.createElement('div');
+    div.className = 'job-history-item';
+    
+    const statusClass = getStatusClass(job.status);
+    const statusLabel = job.status === 'done' ? 'Kész' : 
+                        job.status === 'running' ? 'Folyamatban' :
+                        job.status === 'error' ? 'Hiba' : 'Függőben';
+    
+    const startedAt = job.started_at ? job.started_at.replace('T', ' ').substring(0, 19) : 'ismeretlen';
+    const progress = `${job.completed_rows || 0} / ${job.total_rows || 0} cikk`;
+    
+    let actionsHtml = '';
+    if (job.download_url) {
+      actionsHtml += `<a class="btn btn-sm btn-success" href="${job.download_url}" download>⬇ Word</a>`;
+    }
+    if (job.zip_url) {
+      actionsHtml += `<a class="btn btn-sm btn-secondary" href="${job.zip_url}" download>📦 ZIP</a>`;
+    }
+    if (job.status === 'running' || job.status === 'pending') {
+      actionsHtml += `<button class="btn btn-sm btn-primary" onclick="doResumeJob('${job.job_id}')">▶ Folytatás</button>`;
+    }
+    actionsHtml += `<button class="btn btn-sm btn-danger" onclick="deleteJobHistory('${job.job_id}')">🗑</button>`;
+    
+    div.innerHTML = `
+      <div class="job-history-info">
+        <span class="status-badge ${statusClass}">${statusLabel}</span>
+        <span class="job-history-date">${startedAt}</span>
+        <span class="job-history-progress">${progress}</span>
+        <span class="job-history-id" style="color:#a0aec0;font-size:10px">${job.job_id.substring(0, 8)}...</span>
+      </div>
+      <div class="job-history-actions">${actionsHtml}</div>
+    `;
+    
+    container.appendChild(div);
+  });
+}
+
+async function deleteJobHistory(jobId) {
+  if (!confirm('Biztosan törlöd ezt a job előzményt?')) return;
+  try {
+    await fetch(`/jobs/${jobId}`, { method: 'DELETE' });
+    loadJobHistory();
+    showToast('Job törölve', 'info');
+  } catch (err) {
+    showToast('Hiba: ' + err.message, 'error');
+  }
+}
+
+function resumeFromModal() {
+  closeResumeModal();
+  if (pendingResumeJobId) {
+    doResumeJob(pendingResumeJobId);
+  }
+}
+
+function closeResumeModal() {
+  document.getElementById('resumeModal').classList.remove('open');
 }
 
 // ==========================================
@@ -325,7 +533,6 @@ async function loadPipeline() {
     pipelineVersions = data.versions || [];
     renderPipelineSteps();
     renderPipelineVersions();
-    // nextStepId = max id + 1
     if (pipelineSteps.length > 0) {
       nextStepId = Math.max(...pipelineSteps.map(s => s.id || 0)) + 1;
     }
@@ -399,7 +606,6 @@ function toggleStep(idx, enabled) {
   pipelineSteps[idx].enabled = enabled;
   const stepEl = document.getElementById(`pipeline-step-${idx}`);
   if (stepEl) stepEl.classList.toggle('disabled', !enabled);
-  // Toggle text frissítése
   const toggleText = stepEl.querySelector('.toggle-text');
   if (toggleText) toggleText.textContent = enabled ? 'Aktív' : 'Inaktív';
 }
@@ -432,7 +638,6 @@ function addPipelineStep() {
     prompt: ''
   });
   renderPipelineSteps();
-  // Scroll to new step
   setTimeout(() => {
     const last = document.querySelector('#pipelineStepsList .pipeline-step:last-child');
     if (last) last.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -440,7 +645,6 @@ function addPipelineStep() {
 }
 
 async function savePipeline() {
-  // Collect current textarea values (in case onchange didn't fire)
   document.querySelectorAll('#pipelineStepsList .pipeline-step').forEach((el, idx) => {
     const textarea = el.querySelector('.step-prompt-textarea');
     const nameInput = el.querySelector('.step-name-input');
@@ -457,7 +661,6 @@ async function savePipeline() {
     const data = await res.json();
     if (data.success) {
       showToast('Pipeline mentve!', 'success');
-      // Reload to get updated versions
       await loadPipeline();
     } else {
       showToast(data.error || 'Hiba a mentésnél', 'error');
