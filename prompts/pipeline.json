@@ -3,37 +3,26 @@
     {
       "id": 1,
       "name": "Cikk generálás",
-      "type": "generate",
       "enabled": true,
-      "prompt": "Te egy senior SEO-szövegíró és tartalomstratéga vagy. Magyarul írsz, természetesen, marketing-szag nélkül, de konverzióra optimalizálva.\nÍrj egy minőségi, keresőoptimalizált blogcikket a következő szolgáltatás oldal támogatására, és organikus forgalom + érdeklődők szerzésére.\n\nCég honlapjának url-je: {ceg_url}\nCikk címe: {cikk_cim}\n\nHelyezz el rajta linkeket az alábbi kulcsszavakról az adott oldalakra, összesen {link_db} link legyen egy cikkben, a linkbe semmiképp ne illessz utm paramétert (Markdown formátumban illeszd be a linkeket a szövegbe):\n{linkek_felsorolasa}\n\n{opcionalis_korabbi_cikkek_blokk}\n\nKövetelmények a cikkhez\nNyelv: magyar\nTerjedelem: 600-1000 szó\nE-E-A-T: jelezd a szakértelmet (folyamat, módszer, tapasztalati jelek), kerüld a túlzó ígéreteket.\nKimenet:\nCsak a teljes cikket add vissza.\nNe adj title, meta, outline elemzést.\nAz alcímeket Markdown formátumban add meg: ## Alcím (két hashtaggel), a szövegben ne szerepeljen a főcím (azt külön adjuk hozzá).\n\nFontos:\nNe tömj kulcsszót, legyen természetes.\nNe találj ki konkrét statisztikát; ha számot írsz, legyen általános vagy jelöld természetes módon, hogy \"példa\".\nHa írsz állításokat a céggel kapcsolatban, csakis valósakat írj, olyanokat, melyek megtalálhatók a cég honlapján, ne találj ki nem valós információkat.\nNe legyenek benne ilyen jellegű megfogalmazások:\n\"Az oldal szerint …\", \"A leírás szerint …\"\n\"Ez nem bénázás, hanem profizmus.\"\n\"Tapasztalatból mondom\"\nNe tegyél be forrás hivatkozásokat a bekezdések végére, csak az általam kért hivatkozások szerepeljenek a szövegben.\nNe legyél túlságosan közvetlen.\nNe használj ilyen szerkezetű mondatot: \"ez nem csak X, hanem Y\".\nNe használj bizonytalanító szavakat döntéstámogató szövegben: talán, nagyjából, bizonyos értelemben.\n\nStílus és hangnem útmutató:\n{tone_guide}{megjegyzes_blokk}"
+      "prompt": "Te egy senior SEO-szövegíró és tartalomstratéga vagy. Magyarul írsz, természetesen, marketing-szag nélkül, de konverzióra optimalizálva.\nÍrj egy minőségi, keresőoptimalizált blogcikket a következő szolgáltatás oldal támogatására, és organikus forgalom + érdeklődők szerzésére.\nCég honlapjának url-je: {ceg_url}\nCikk címe: {cikk_cim}\nA cikk címe legyen a H1-es cím.\nHelyezz el rajta linkeket az alábbi kulcsszavakról az adott oldalakra, összesen {link_db} link legyen egy cikkben, a linkbe semmiképp ne illessz utm paramétert (Markdown formátumban illeszd be a linkeket a szövegbe):\n{linkek_felsorolasa}\n{opcionalis_korabbi_cikkek_blokk}\nKövetelmények a cikkhez\nNyelv: magyar\nTerjedelem: 400-600 szó\nE-E-A-T: jelezd a szakértelmet (folyamat, módszer, tapasztalati jelek), kerüld a túlzó ígéreteket.\nKimenet:\nCsak a teljes cikket add vissza.\nNe adj title, meta, outline elemzést.\nAz alcímeket Markdown formátumban add meg: ## Alcím (két hashtaggel), a szövegben ne szerepeljen a főcím (azt külön adjuk hozzá).\nFontos:\nNe tömj kulcsszót, legyen természetes.\nNe találj ki konkrét statisztikát; ha számot írsz, legyen általános vagy jelöld természetes módon, hogy \"példa\".\nHa írsz állításokat a céggel kapcsolatban, csakis valósakat írj, olyanokat, melyek megtalálhatók a cég honlapján, ne találj ki nem valós információkat.\nNe legyenek benne ilyen jellegű megfogalmazások:\n\"Az oldal szerint …\", \"A leírás szerint …\"\n\"Ez nem bénázás, hanem profizmus.\"\n\"Tapasztalatból mondom\"\nNe tegyél be forrás hivatkozásokat a bekezdések végére, csak az általam kért hivatkozások szerepeljenek a szövegben.\nNe legyél túlságosan közvetlen.\nNe használj ilyen szerkezetű mondatot: \"ez nem csak X, hanem Y\".\nNe használj bizonytalanító szavakat döntéstámogató szövegben: talán, nagyjából, bizonyos értelemben.\nStílus és hangnem útmutató:\n{tone_guide}{megjegyzes_blokk}"
     },
     {
       "id": 2,
       "name": "Tényellenőrzés",
-      "type": "check",
       "enabled": true,
-      "prompt": "Az alábbi cikket ellenőrizd le: tartalmaz-e olyan konkrét állítást a cégről, amely nem ellenőrizhető a cég honlapjáról ({ceg_url}), vagy nyilvánvalóan kitalált/valótlan? Csak akkor jelezz problémát, ha egyértelmű kitalált állítás van. Válaszolj így: \"OK\" ha nincs probléma, vagy \"JAVÍTANDÓ: [probléma rövid leírása]\" ha van.\n\nCikk:\n{aktualis_cikk}"
+      "prompt": "Az alábbi cikket ellenőrizd le: tartalmaz-e olyan konkrét állítást a cégről, amely nem ellenőrizhető a cég honlapjáról ({ceg_url}), vagy valótlan?  Valamint gondold át, hogy a cikkben található tények, állítások igazak-e. Ha bármi nem igaz, módosítsd a cikket úgy, hogy igaz legyen. Ha minden igaz, ne módosíts a cikken.\nCsak a cikket add vissza válaszként a helyes linkeket megőrizve, semmilyen kommentet, megjegyzést ne tegyél hozzá.\nCikk:\n{aktualis_cikk}"
     },
     {
       "id": 3,
       "name": "Link és UTM ellenőrzés",
-      "type": "check",
       "enabled": true,
-      "prompt": "Ellenőrizd az alábbi cikket:\n1. Tartalmaz-e olyan linket, amelyben utm_ paraméter szerepel? Ha igen, jelöld meg pontosan melyik link és mi a probléma.\n2. Szerepelnek-e a cikkben a következő elvárt kulcsszavak/linkek: {elvart_linkek}? Ha valamelyik hiányzik, jelöld meg.\n\nVálaszolj így:\n- \"OK\" ha minden rendben\n- \"JAVÍTANDÓ: [pontos probléma leírása]\" ha van probléma\n\nCikk:\n{aktualis_cikk}"
+      "prompt": "Ellenőrizd az alábbi cikket:\n1. Tartalmaz-e olyan linket, amelyben utm_ paraméter szerepel?\n2. Szerepelnek-e a cikkben a következő elvárt kulcsszavak és linkek: {elvart_linkek}? \nHa van utm paraméter, töröld belőle, ha nincs, ne módosítsd a cikket.\nHa benne van a cikkben az összes kulcsszó és link, ne módosítsd a cikket, ha nincs, fogalmazd át a megfelelő részét, hogy benne legyen. \nCsak a cikket add vissza válaszként a helyes linkeket megőrizve, semmilyen kommentet, megjegyzést ne tegyél hozzá.\nCikk:\n{aktualis_cikk}"
     },
     {
       "id": 4,
       "name": "Formátum és nyelvezet ellenőrzés",
-      "type": "check",
       "enabled": true,
-      "prompt": "Ellenőrizd az alábbi magyar nyelvű cikket az alábbi szempontok szerint:\n\n1. Szerepelnek-e benne tiltott fordulatok? Tiltott: \"Az oldal szerint\", \"A leírás szerint\", \"Ez nem bénázás\", \"Tapasztalatból mondom\", \"ez nem csak\", \"talán\", \"nagyjából\", \"bizonyos értelemben\", \"felkiáltójel\"\n2. A mondatok megfelelően rövidek-e, van-e túl hosszú, nehezen érthető mondat?\n3. Megfelelő-e a bekezdésstruktúra (1-3 mondatos blokkok)?\n4. Van-e ## jelű H2 alcím a cikkben (legalább 2 kell)?\n\nVálaszolj így:\n- \"OK\" ha minden rendben\n- \"JAVÍTANDÓ: [pontos probléma leírása]\" ha van probléma\n\nCikk:\n{aktualis_cikk}"
-    },
-    {
-      "id": 5,
-      "name": "Javítás",
-      "type": "fix",
-      "enabled": true,
-      "prompt": "Az alábbi cikket kérlek javítsd ki a megjelölt problémák alapján. Csak a teljes javított cikket add vissza, semmi mást.\n\nProblémák:\n{javitasi_problemak}\n\nEredeti cikk:\n{aktualis_cikk}"
+      "prompt": "Ellenőrizd az alábbi cikket az alábbi szempontok szerint:\n\n1. Szerepelnek-e benne tiltott fordulatok vagy karakterek? Tiltott: \"Az oldal szerint …\", \"A leírás szerint …\", \"Ez nem bénázás, hanem profizmus.\", \"Tapasztalatból mondom\", em dash karakter\n\nHa szerepel benne, módosítsd a cikket úgy, hogy értelmes maradjon, de ne szerepeljen benne a tiltott elem. Ha nincs vele ilyen probléma, ne módosítsd.\n\n2. Cikk bekezdésekre van tagolva, van egy H1-es főcíme és több H2-es alcíme, opcionálisan lehet H3-as alcíme is.\n\nHa nem megfelelő a cikk tagolása írd át úgy, hogy megfelelő legyen. Ha nincs vele ilyen probléma, ne módosítsd.\nCsak a cikket add vissza válaszként a helyes linkeket megőrizve, semmilyen kommentet, megjegyzést ne tegyél hozzá.\n\nCikk:\n{aktualis_cikk}"
     }
   ],
   "versions": [
@@ -138,6 +127,47 @@
         }
       ],
       "saved_at": "2026-03-21T20:37:44"
+    },
+    {
+      "version": 5,
+      "steps": [
+        {
+          "id": 1,
+          "name": "Cikk generálás",
+          "type": "generate",
+          "enabled": true,
+          "prompt": "Te egy senior SEO-szövegíró és tartalomstratéga vagy. Magyarul írsz, természetesen, marketing-szag nélkül, de konverzióra optimalizálva.\nÍrj egy minőségi, keresőoptimalizált blogcikket a következő szolgáltatás oldal támogatására, és organikus forgalom + érdeklődők szerzésére.\n\nCég honlapjának url-je: {ceg_url}\nCikk címe: {cikk_cim}\n\nHelyezz el rajta linkeket az alábbi kulcsszavakról az adott oldalakra, összesen {link_db} link legyen egy cikkben, a linkbe semmiképp ne illessz utm paramétert (Markdown formátumban illeszd be a linkeket a szövegbe):\n{linkek_felsorolasa}\n\n{opcionalis_korabbi_cikkek_blokk}\n\nKövetelmények a cikkhez\nNyelv: magyar\nTerjedelem: 600-1000 szó\nE-E-A-T: jelezd a szakértelmet (folyamat, módszer, tapasztalati jelek), kerüld a túlzó ígéreteket.\nKimenet:\nCsak a teljes cikket add vissza.\nNe adj title, meta, outline elemzést.\nAz alcímeket Markdown formátumban add meg: ## Alcím (két hashtaggel), a szövegben ne szerepeljen a főcím (azt külön adjuk hozzá).\n\nFontos:\nNe tömj kulcsszót, legyen természetes.\nNe találj ki konkrét statisztikát; ha számot írsz, legyen általános vagy jelöld természetes módon, hogy \"példa\".\nHa írsz állításokat a céggel kapcsolatban, csakis valósakat írj, olyanokat, melyek megtalálhatók a cég honlapján, ne találj ki nem valós információkat.\nNe legyenek benne ilyen jellegű megfogalmazások:\n\"Az oldal szerint …\", \"A leírás szerint …\"\n\"Ez nem bénázás, hanem profizmus.\"\n\"Tapasztalatból mondom\"\nNe tegyél be forrás hivatkozásokat a bekezdések végére, csak az általam kért hivatkozások szerepeljenek a szövegben.\nNe legyél túlságosan közvetlen.\nNe használj ilyen szerkezetű mondatot: \"ez nem csak X, hanem Y\".\nNe használj bizonytalanító szavakat döntéstámogató szövegben: talán, nagyjából, bizonyos értelemben.\n\nStílus és hangnem útmutató:\n{tone_guide}{megjegyzes_blokk}"
+        },
+        {
+          "id": 2,
+          "name": "Tényellenőrzés",
+          "type": "check",
+          "enabled": true,
+          "prompt": "Az alábbi cikket ellenőrizd le: tartalmaz-e olyan konkrét állítást a cégről, amely nem ellenőrizhető a cég honlapjáról ({ceg_url}), vagy nyilvánvalóan kitalált/valótlan? Csak akkor jelezz problémát, ha egyértelmű kitalált állítás van. Válaszolj így: \"OK\" ha nincs probléma, vagy \"JAVÍTANDÓ: [probléma rövid leírása]\" ha van.\n\nCikk:\n{aktualis_cikk}"
+        },
+        {
+          "id": 3,
+          "name": "Link és UTM ellenőrzés",
+          "type": "check",
+          "enabled": true,
+          "prompt": "Ellenőrizd az alábbi cikket:\n1. Tartalmaz-e olyan linket, amelyben utm_ paraméter szerepel? Ha igen, jelöld meg pontosan melyik link és mi a probléma.\n2. Szerepelnek-e a cikkben a következő elvárt kulcsszavak/linkek: {elvart_linkek}? Ha valamelyik hiányzik, jelöld meg.\n\nVálaszolj így:\n- \"OK\" ha minden rendben\n- \"JAVÍTANDÓ: [pontos probléma leírása]\" ha van probléma\n\nCikk:\n{aktualis_cikk}"
+        },
+        {
+          "id": 4,
+          "name": "Formátum és nyelvezet ellenőrzés",
+          "type": "check",
+          "enabled": true,
+          "prompt": "Ellenőrizd az alábbi magyar nyelvű cikket az alábbi szempontok szerint:\n\n1. Szerepelnek-e benne tiltott fordulatok? Tiltott: \"Az oldal szerint\", \"A leírás szerint\", \"Ez nem bénázás\", \"Tapasztalatból mondom\", \"ez nem csak\", \"talán\", \"nagyjából\", \"bizonyos értelemben\", \"felkiáltójel\"\n2. A mondatok megfelelően rövidek-e, van-e túl hosszú, nehezen érthető mondat?\n3. Megfelelő-e a bekezdésstruktúra (1-3 mondatos blokkok)?\n4. Van-e ## jelű H2 alcím a cikkben (legalább 2 kell)?\n\nVálaszolj így:\n- \"OK\" ha minden rendben\n- \"JAVÍTANDÓ: [pontos probléma leírása]\" ha van probléma\n\nCikk:\n{aktualis_cikk}"
+        },
+        {
+          "id": 5,
+          "name": "Javítás",
+          "type": "fix",
+          "enabled": true,
+          "prompt": "Az alábbi cikket kérlek javítsd ki a megjelölt problémák alapján. Csak a teljes javított cikket add vissza, semmi mást.\n\nProblémák:\n{javitasi_problemak}\n\nEredeti cikk:\n{aktualis_cikk}"
+        }
+      ],
+      "saved_at": "2026-03-22T16:10:01"
     }
   ]
 }

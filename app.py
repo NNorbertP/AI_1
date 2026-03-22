@@ -325,8 +325,8 @@ def format_markdown_to_docx(doc, text):
             heading = doc.add_heading(stripped[3:], level=2)
             heading.style.font.color.rgb = RGBColor(0, 0, 0)
         elif stripped.startswith('# '):
-            heading = doc.add_heading(stripped[2:], level=1)
-            heading.style.font.color.rgb = RGBColor(0, 0, 0)
+            # H1 kihagyva: a cím már hozzá lett adva külön (create_output_files)
+            pass
         elif re.match(r'^[-*] ', stripped):
             p = doc.add_paragraph(style='List Bullet')
             add_formatted_runs(p, stripped[2:])
@@ -360,36 +360,123 @@ def safe_format(template, variables):
             return '{' + key + '}'
     return template.format_map(SafeDict(variables))
 
-def call_llm(prompt_text, model, temperature=0.7, retries=3):
-    """LLM hívás rate limit és timeout kezeléssel."""
-    for attempt in range(retries):
+def call_llm(prompt_text, model, temperature=0.7):
+    """LLM hívás streaming móddal, exponenciális backoff retry logikával.
+    
+    - Rate limit (429): exponenciális backoff: 30s, 60s, 120s (max 3x)
+    - Connection error / timeout: max 5x újrapróbálkozás, 10s várakozással
+    - Üres válasz: egyszeri újrapróbálkozás
+    - Streaming: folyamatos tokenek fogadása, megakadályozza a 30s HTTP timeout-ot
+    """
+    RATE_LIMIT_WAITS = [30, 60, 120]  # exponenciális backoff rate limit esetén
+    MAX_CONN_RETRIES = 5
+    CONN_WAIT = 10
+    
+    rate_limit_attempts = 0
+    conn_attempts = 0
+    
+    # Először megpróbálunk streaming módban hívni (Railway timeout-védelem)
+    # Ha a streaming nem támogatott, automatikusan visszaesünk normál hívásra
+    use_streaming = True
+    
+    while True:
         try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt_text}],
-                temperature=temperature,
-                timeout=60.0
-            )
-            content = response.choices[0].message.content.strip()
-            if not content and attempt < retries - 1:
-                print(f"Üres válasz kapva, újrapróbálkozás ({attempt+1}/{retries})...")
+            if use_streaming:
+                # Streaming mód: megakadályozza a Railway ~30s HTTP timeout-ját
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt_text}],
+                    temperature=temperature,
+                    stream=True,
+                    timeout=120.0
+                )
+                # Tokenek összegyűjtése a streamből
+                full_response = ""
+                for chunk in response:
+                    delta = chunk.choices[0].delta
+                    if delta and delta.content:
+                        full_response += delta.content
+                content = full_response.strip()
+            else:
+                # Fallback: normál (nem streaming) hívás
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt_text}],
+                    temperature=temperature,
+                    timeout=120.0
+                )
+                content = response.choices[0].message.content.strip()
+            
+            # Üres válasz: egyszeri újrapróbálkozás
+            if not content:
+                print("Üres válasz kapva, egyszeri újrapróbálkozás...")
                 time.sleep(2)
-                continue
+                if use_streaming:
+                    r2 = client.chat.completions.create(
+                        model=model,
+                        messages=[{"role": "user", "content": prompt_text}],
+                        temperature=temperature,
+                        stream=True,
+                        timeout=120.0
+                    )
+                    full2 = ""
+                    for chunk in r2:
+                        delta = chunk.choices[0].delta
+                        if delta and delta.content:
+                            full2 += delta.content
+                    content = full2.strip()
+                else:
+                    r2 = client.chat.completions.create(
+                        model=model,
+                        messages=[{"role": "user", "content": prompt_text}],
+                        temperature=temperature,
+                        timeout=120.0
+                    )
+                    content = r2.choices[0].message.content.strip()
+            
             return content
+            
         except Exception as e:
             error_str = str(e)
+            
+            # Streaming nem támogatott: automatikus fallback normál módra
+            if use_streaming and ("streaming is not supported" in error_str.lower() or
+                                   "stream" in error_str.lower() and "400" in error_str):
+                print("Streaming nem támogatott, átváltás normál módra...")
+                use_streaming = False
+                continue
+            
+            # Rate limit (429): exponenciális backoff
             if "429" in error_str or "rate limit" in error_str.lower():
-                wait_time = 30 * (attempt + 1)
-                print(f"Rate limit elérve. Várakozás {wait_time} másodpercet ({attempt+1}/{retries})...")
-                time.sleep(wait_time)
-            elif "timeout" in error_str.lower():
-                print(f"Timeout hiba. Újrapróbálkozás ({attempt+1}/{retries})...")
-                time.sleep(5)
+                if rate_limit_attempts < len(RATE_LIMIT_WAITS):
+                    wait_time = RATE_LIMIT_WAITS[rate_limit_attempts]
+                    print(f"Rate limit elérve. Várakozás {wait_time}s ({rate_limit_attempts+1}/{len(RATE_LIMIT_WAITS)})...")
+                    time.sleep(wait_time)
+                    rate_limit_attempts += 1
+                    continue
+                else:
+                    return f"API Hiba: Rate limit – többszöri próbálkozás után sem sikerült."
+            
+            # Timeout / connection error: max 5x újrapróbálkozás
+            elif ("timeout" in error_str.lower() or 
+                  "connection" in error_str.lower() or
+                  "network" in error_str.lower()):
+                if conn_attempts < MAX_CONN_RETRIES:
+                    print(f"Kapcsolati hiba ({error_str[:60]}). Újrapróbálkozás {CONN_WAIT}s múlva ({conn_attempts+1}/{MAX_CONN_RETRIES})...")
+                    time.sleep(CONN_WAIT)
+                    conn_attempts += 1
+                    continue
+                else:
+                    return f"API Hiba: Kapcsolat – {MAX_CONN_RETRIES}x újrapróbálkozás után sem sikerült."
+            
+            # Egyéb hiba: egyszeri újrapróbálkozás
             else:
-                if attempt == retries - 1:
-                    return f"API Hiba: {error_str}"
-                time.sleep(2)
-    return "API Hiba: Többszöri próbálkozás után sem sikerült választ kapni."
+                if conn_attempts < 1:
+                    print(f"API hiba ({error_str[:80]}). Egyszeri újrapróbálkozás...")
+                    time.sleep(3)
+                    conn_attempts += 1
+                    continue
+                return f"API Hiba: {error_str}"
 
 def generate_single_article(row_data, job_id, row_index, model):
     job = load_job(job_id)
@@ -556,7 +643,12 @@ def create_output_files(job_id):
                 
                 heading = doc.add_heading(cikk_cim, 0)
                 heading.style.font.color.rgb = RGBColor(0, 0, 0)
-                format_markdown_to_docx(doc, row['article'])
+                # H1 sorok eltávolítása a cikk szövegéből (a cím már hozzá lett adva külön)
+                article_text = '\n'.join(
+                    line for line in row['article'].split('\n')
+                    if not line.strip().startswith('# ') or line.strip().startswith('## ')
+                )
+                format_markdown_to_docx(doc, article_text)
                 
                 # Txt zip építése
                 zipf.writestr(f"{safe_cim}.txt", row['article'])
@@ -940,9 +1032,10 @@ def get_variables():
             "{megjegyzes}": "Egyéb instrukció az Excelből"
         },
         "Generált változók": {
+            "{link_db}": "A megadott linkek száma (automatikusan számolva)",
             "{linkek_felsorolasa}": "Automatikus lista a megadott linkekből Markdown formátumban",
             "{opcionalis_korabbi_cikkek_blokk}": "Korábbi cikkek hivatkozási instrukciója (ha van)",
-            "{megjegyzes_blokk}": "Megjegyzés instrukció (ha van)",
+            "{megjegyzes_blokk}": "Megjegyzés instrukció (ha van: '\\nEgyéb instrukciók: ...')",
             "{elvart_linkek}": "A megadott kulcsszavak listája ellenőrzéshez"
         },
         "Rendszer változók": {
