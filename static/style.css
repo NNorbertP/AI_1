@@ -1,6 +1,9 @@
 /* ==========================================
-   SEO Cikk Generáló – Stílusok
+   SEO Cikk Generáló – v6 Stílusok
+   Paletta: #284b63 / #3C6E71 / fehér
    ========================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -9,8 +12,8 @@
 }
 
 body {
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background: #f0f4f8;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  background: #f0f4f7;
   color: #1a202c;
   font-size: 14px;
   line-height: 1.6;
@@ -22,34 +25,41 @@ body {
 .app-wrapper {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 24px 16px 48px;
 }
 
+/* ==========================================
+   FEJLÉC
+   ========================================== */
 .app-header {
-  background: linear-gradient(135deg, #1a56db 0%, #1e40af 100%);
+  background: linear-gradient(135deg, rgba(40, 75, 99, 0.92) 0%, #284b63 100%);
   color: white;
-  border-radius: 12px;
-  padding: 24px 28px;
-  margin-bottom: 24px;
+  border-radius: 16px;
+  padding: 28px 32px;
+  margin-bottom: 28px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 18px;
+  box-shadow: 0 8px 32px rgba(40, 75, 99, 0.25);
 }
 
 .app-header .icon {
-  font-size: 32px;
+  font-size: 36px;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .app-header h1 {
   font-size: 22px;
   font-weight: 700;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
+  letter-spacing: -0.3px;
 }
 
 .app-header p {
   font-size: 13px;
-  opacity: 0.85;
+  opacity: 0.8;
+  font-weight: 400;
 }
 
 /* ==========================================
@@ -57,267 +67,167 @@ body {
    ========================================== */
 .card {
   background: white;
-  border-radius: 12px;
-  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(40, 75, 99, 0.08);
   margin-bottom: 20px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
-  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  border: 1px solid rgba(40, 75, 99, 0.08);
 }
 
-.card-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #1a202c;
-  margin-bottom: 16px;
+.card-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid #eef2f6;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  background: #fafbfc;
 }
 
-.card-title .step-badge {
-  background: #1a56db;
-  color: white;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  flex-shrink: 0;
+.card-header h2 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #284b63;
+  flex: 1;
+}
+
+.card-header .card-icon {
+  font-size: 18px;
+}
+
+.card-body {
+  padding: 24px;
 }
 
 /* ==========================================
-   FELTÖLTÉS
+   FELTÖLTÉSI ZÓNA
    ========================================== */
 .upload-zone {
-  border: 2px dashed #cbd5e0;
-  border-radius: 10px;
+  border: 2px dashed #3C6E71;
+  border-radius: 12px;
   padding: 36px 24px;
   text-align: center;
   cursor: pointer;
   transition: all 0.2s ease;
-  background: #f7fafc;
+  background: #f7fbfb;
+  position: relative;
 }
 
 .upload-zone:hover,
-.upload-zone.dragover {
-  border-color: #1a56db;
-  background: #ebf4ff;
+.upload-zone.drag-over {
+  border-color: #284b63;
+  background: #eef6f6;
+  transform: translateY(-1px);
 }
 
-.upload-zone .upload-icon {
+.upload-zone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+.upload-icon {
   font-size: 40px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   display: block;
 }
 
 .upload-zone p {
-  color: #4a5568;
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-
-.upload-zone .hint {
-  font-size: 12px;
-  color: #718096;
-}
-
-#fileInput {
-  display: none;
-}
-
-.btn-upload {
-  display: inline-block;
-  margin-top: 12px;
-  padding: 8px 20px;
-  background: #1a56db;
-  color: white;
-  border-radius: 8px;
-  font-size: 13px;
+  color: #3C6E71;
   font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-  border: none;
+  font-size: 14px;
+  margin-bottom: 4px;
 }
 
-.btn-upload:hover {
-  background: #1e40af;
+.upload-zone small {
+  color: #718096;
+  font-size: 12px;
 }
 
-.upload-success {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  background: #f0fff4;
-  border: 1px solid #9ae6b4;
-  border-radius: 8px;
-  color: #276749;
-  font-size: 13px;
+.upload-filename {
   margin-top: 12px;
+  font-size: 13px;
+  color: #284b63;
+  font-weight: 500;
+  background: #e8f4f4;
+  padding: 6px 12px;
+  border-radius: 6px;
+  display: inline-block;
 }
 
 /* ==========================================
    TÁBLÁZAT
    ========================================== */
-#tableSection {
-  display: none;
-}
-
-.table-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.table-info {
-  font-size: 13px;
-  color: #4a5568;
-}
-
-.table-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.btn {
-  padding: 7px 16px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  text-decoration: none;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: #1a56db;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #1e40af;
-}
-
-.btn-success {
-  background: #38a169;
-  color: white;
-}
-
-.btn-success:hover:not(:disabled) {
-  background: #276749;
-}
-
-.btn-danger {
-  background: #e53e3e;
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: #c53030;
-}
-
-.btn-secondary {
-  background: #edf2f7;
-  color: #4a5568;
-  border: 1px solid #e2e8f0;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #e2e8f0;
-}
-
-.btn-sm {
-  padding: 4px 10px;
-  font-size: 12px;
-}
-
-.table-container {
+.table-wrapper {
   overflow-x: auto;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid #e2e8f0;
 }
 
-table {
+.data-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
 }
 
-thead {
-  background: #f7fafc;
-}
-
-thead th {
-  padding: 10px 12px;
+.data-table thead th {
+  background: #284b63;
+  color: white;
+  padding: 11px 14px;
   text-align: left;
   font-weight: 600;
-  color: #4a5568;
   font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  border-bottom: 1px solid #e2e8f0;
+  letter-spacing: 0.3px;
   white-space: nowrap;
 }
 
-tbody tr {
-  border-bottom: 1px solid #edf2f7;
-  transition: background 0.15s;
+.data-table thead th:first-child {
+  border-radius: 10px 0 0 0;
 }
 
-tbody tr:last-child {
-  border-bottom: none;
+.data-table thead th:last-child {
+  border-radius: 0 10px 0 0;
 }
 
-tbody tr:hover {
-  background: #f7fafc;
+.data-table tbody tr:nth-child(even) {
+  background: #f0f4f7;
 }
 
-tbody td {
-  padding: 8px 12px;
-  vertical-align: top;
-}
-
-/* Szerkeszthető cellák */
-.editable {
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 4px 6px;
-  font-size: 13px;
-  font-family: inherit;
-  width: 100%;
-  min-width: 80px;
-  color: #1a202c;
-  transition: border-color 0.15s, background 0.15s;
-  resize: none;
-  line-height: 1.4;
-}
-
-.editable:focus {
-  outline: none;
-  border-color: #1a56db;
+.data-table tbody tr:nth-child(odd) {
   background: white;
-  box-shadow: 0 0 0 2px rgba(26, 86, 219, 0.15);
 }
 
-.editable:hover:not(:focus) {
-  border-color: #cbd5e0;
-  background: #f7fafc;
+.data-table tbody tr:hover {
+  background: #e8f0f5;
+}
+
+.data-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid #eef2f6;
+  vertical-align: middle;
+}
+
+.data-table td input,
+.data-table td textarea {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  background: transparent;
+  transition: all 0.15s ease;
+  color: #2d3748;
+}
+
+.data-table td input:focus,
+.data-table td textarea:focus {
+  outline: none;
+  border-color: #3C6E71;
+  background: white;
+  box-shadow: 0 0 0 2px rgba(60, 110, 113, 0.15);
 }
 
 /* Státusz badge */
@@ -332,351 +242,67 @@ tbody td {
   white-space: nowrap;
 }
 
-.status-waiting {
-  background: #edf2f7;
-  color: #4a5568;
-}
-
-.status-running {
-  background: #ebf8ff;
-  color: #2b6cb0;
-}
-
-.status-done {
-  background: #f0fff4;
-  color: #276749;
-}
-
-.status-error {
-  background: #fff5f5;
-  color: #c53030;
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  display: inline-block;
-  flex-shrink: 0;
-}
-
-.status-waiting .status-dot { background: #a0aec0; }
-.status-running .status-dot { background: #3182ce; animation: pulse 1.2s infinite; }
-.status-done .status-dot { background: #38a169; }
-.status-error .status-dot { background: #e53e3e; }
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.8); }
-}
-
-.status-message {
-  font-size: 11px;
-  color: #718096;
-  margin-top: 2px;
-}
+.status-waiting  { background: #edf2f7; color: #718096; }
+.status-running  { background: #ebf8ff; color: #2b6cb0; }
+.status-done     { background: #f0fff4; color: #276749; }
+.status-error    { background: #fff5f5; color: #c53030; }
 
 /* Sor törlés gomb */
 .btn-row-delete {
   background: none;
   border: none;
-  color: #a0aec0;
+  color: #e53e3e;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
+  padding: 4px 6px;
+  border-radius: 5px;
   font-size: 14px;
-  line-height: 1;
-  transition: color 0.15s, background 0.15s;
+  transition: background 0.15s;
 }
 
 .btn-row-delete:hover {
-  color: #e53e3e;
   background: #fff5f5;
 }
 
-/* ==========================================
-   FOLYAMATJELZŐ
-   ========================================== */
-#progressSection {
-  display: none;
-}
-
-.progress-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.progress-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1a202c;
-}
-
-.progress-count {
-  font-size: 13px;
-  color: #4a5568;
-}
-
-.progress-bar-wrapper {
-  background: #edf2f7;
-  border-radius: 8px;
-  height: 10px;
-  overflow: hidden;
-  margin-bottom: 8px;
-}
-
-.progress-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #1a56db, #3b82f6);
-  border-radius: 8px;
-  transition: width 0.4s ease;
-  width: 0%;
-}
-
-.progress-status-text {
-  font-size: 12px;
-  color: #718096;
-}
-
-/* ==========================================
-   LETÖLTÉS
-   ========================================== */
-#downloadSection {
-  display: none;
-}
-
-.download-box {
-  background: linear-gradient(135deg, #f0fff4, #e6fffa);
-  border: 1px solid #9ae6b4;
-  border-radius: 10px;
-  padding: 20px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.download-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.download-icon {
-  font-size: 32px;
-  line-height: 1;
-}
-
-.download-text h3 {
-  font-size: 15px;
-  font-weight: 600;
-  color: #276749;
-  margin-bottom: 2px;
-}
-
-.download-text p {
-  font-size: 12px;
-  color: #48bb78;
-}
-
-/* ==========================================
-   ÖSSZEFOGLALÓ STATISZTIKA
-   ========================================== */
-.stats-row {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-.stat-card {
-  flex: 1;
-  min-width: 100px;
-  background: #f7fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 12px 16px;
-  text-align: center;
-}
-
-.stat-number {
-  font-size: 24px;
-  font-weight: 700;
-  color: #1a56db;
-  line-height: 1;
-  margin-bottom: 4px;
-}
-
-.stat-label {
-  font-size: 11px;
-  color: #718096;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-/* ==========================================
-   ÉRTESÍTÉSEK
-   ========================================== */
-.toast-container {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.toast {
-  background: #1a202c;
-  color: white;
-  padding: 12px 18px;
-  border-radius: 8px;
-  font-size: 13px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  animation: slideIn 0.3s ease;
-  max-width: 320px;
-}
-
-.toast.toast-success { background: #276749; }
-.toast.toast-error { background: #c53030; }
-
-@keyframes slideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-/* ==========================================
-   ÜRES ÁLLAPOT
-   ========================================== */
-.empty-state {
-  text-align: center;
-  padding: 40px 20px;
-  color: #718096;
-}
-
-.empty-state .empty-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
-  display: block;
-}
-
-/* ==========================================
-   RESZPONZÍV
-   ========================================== */
-@media (max-width: 768px) {
-  .app-wrapper {
-    padding: 12px 8px;
-  }
-
-  .app-header {
-    padding: 16px;
-    flex-direction: column;
-    text-align: center;
-  }
-
-  .app-header h1 {
-    font-size: 18px;
-  }
-
-  .download-box {
-    flex-direction: column;
-    text-align: center;
-  }
-
-  .stats-row {
-    gap: 8px;
-  }
-
-  .table-toolbar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .btn {
-    font-size: 12px;
-    padding: 6px 12px;
-  }
-}
-
-/* ==========================================
-   SCROLLBAR
-   ========================================== */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f0f4f8;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #cbd5e0;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #a0aec0;
-}
-
-/* ==========================================
-   BETÖLTŐ ANIMÁCIÓ
-   ========================================== */
-.spinner {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(255,255,255,0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Új sor hozzáadás gomb */
-.add-row-btn {
-  width: 100%;
-  padding: 8px;
-  background: #f7fafc;
-  border: 1px dashed #cbd5e0;
-  border-radius: 0 0 8px 8px;
-  color: #718096;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: center;
-}
-
-.add-row-btn:hover {
-  background: #edf2f7;
-  color: #1a56db;
-  border-color: #1a56db;
-}
-
-/* ==========================================
-   MODELLVÁLASZTÓ
-   ========================================== */
-.table-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.model-selector-wrap {
+/* Sor hozzáadása */
+.btn-add-row {
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-top: 12px;
+  padding: 8px 16px;
+  background: white;
+  border: 1.5px dashed #3C6E71;
+  border-radius: 8px;
+  color: #3C6E71;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.model-label {
+.btn-add-row:hover {
+  background: #eef6f6;
+  border-color: #284b63;
+  color: #284b63;
+}
+
+/* ==========================================
+   GENERÁLÁS VEZÉRLŐ
+   ========================================== */
+.generation-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.model-select-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-select-group label {
   font-size: 13px;
   font-weight: 500;
   color: #4a5568;
@@ -684,271 +310,224 @@ tbody td {
 }
 
 .model-select {
-  padding: 6px 10px;
-  border: 1px solid #e2e8f0;
+  border: 1.5px solid #cbd5e0;
   border-radius: 8px;
+  padding: 8px 12px;
   font-size: 13px;
   font-family: inherit;
-  color: #1a202c;
+  color: #2d3748;
   background: white;
   cursor: pointer;
-  transition: border-color 0.15s;
-  appearance: auto;
+  transition: border-color 0.2s;
+  min-width: 160px;
 }
 
 .model-select:focus {
   outline: none;
-  border-color: #1a56db;
-  box-shadow: 0 0 0 2px rgba(26, 86, 219, 0.15);
+  border-color: #3C6E71;
+  box-shadow: 0 0 0 3px rgba(60, 110, 113, 0.15);
 }
 
-/* ==========================================
-   PROMPT PANEL (ACCORDION)
-   ========================================== */
-.prompt-card {
-  padding: 0;
+/* Progress bar */
+.progress-section {
+  margin-top: 20px;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 500;
+  color: #4a5568;
+  margin-bottom: 8px;
+}
+
+.progress-bar-track {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 99px;
   overflow: hidden;
 }
 
-.prompt-accordion-btn {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 24px;
-  background: white;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1a202c;
-  text-align: left;
-  transition: background 0.15s;
-  border-radius: 12px;
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3C6E71, #284b63);
+  border-radius: 99px;
+  transition: width 0.4s ease;
+  width: 0%;
 }
 
-.prompt-accordion-btn:hover {
+/* ==========================================
+   GOMBOK
+   ========================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #284b63 0%, #3C6E71 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(40, 75, 99, 0.3);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(40, 75, 99, 0.4);
+}
+
+.btn-secondary {
+  background: white;
+  color: #284b63;
+  border: 1.5px solid #284b63;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #f0f4f7;
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #276749 0%, #38a169 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(39, 103, 73, 0.3);
+}
+
+.btn-success:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(39, 103, 73, 0.4);
+}
+
+.btn-danger {
+  background: white;
+  color: #c53030;
+  border: 1.5px solid #fc8181;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #fff5f5;
+  border-color: #c53030;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #4a5568;
+  border: 1.5px solid #e2e8f0;
+}
+
+.btn-ghost:hover:not(:disabled) {
   background: #f7fafc;
+  border-color: #cbd5e0;
+}
+
+.btn-lg {
+  padding: 12px 28px;
+  font-size: 15px;
+  border-radius: 10px;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+.btn-xs {
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+}
+
+/* ==========================================
+   ACCORDION
+   ========================================== */
+.accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+  border-bottom: 1px solid transparent;
+}
+
+.accordion-header:hover {
+  background: #f7fafc;
+}
+
+.accordion-header.open {
+  border-bottom-color: #eef2f6;
+}
+
+.accordion-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #284b63;
+}
+
+.accordion-icon {
+  font-size: 18px;
 }
 
 .accordion-arrow {
   font-size: 12px;
   color: #718096;
-  transition: transform 0.25s ease;
+  transition: transform 0.2s ease;
 }
 
 .accordion-arrow.open {
   transform: rotate(180deg);
 }
 
-.prompt-panel {
-  border-top: 1px solid #e2e8f0;
-  padding: 20px 24px 24px;
-}
-
-/* Fülek */
-.prompt-tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 16px;
-  border-bottom: 2px solid #e2e8f0;
-  padding-bottom: 0;
-}
-
-.prompt-tab {
-  padding: 8px 16px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  color: #718096;
-  border-radius: 6px 6px 0 0;
-  transition: all 0.15s;
-  position: relative;
-  bottom: -2px;
-  border-bottom: 2px solid transparent;
-}
-
-.prompt-tab:hover {
-  color: #1a56db;
-  background: #f7fafc;
-}
-
-.prompt-tab.active {
-  color: #1a56db;
-  border-bottom: 2px solid #1a56db;
-  background: white;
-}
-
-/* Prompt tartalom */
-.prompt-content {
+.accordion-body {
   display: none;
+  padding: 24px;
+  border-top: 1px solid #eef2f6;
 }
 
-.prompt-content.active {
+.accordion-body.open {
   display: block;
 }
 
-.prompt-header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 10px;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.prompt-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1a202c;
-}
-
-.prompt-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.prompt-hint {
-  font-size: 11px;
-  color: #718096;
-  margin-bottom: 10px;
-  background: #f7fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 6px 10px;
-  line-height: 1.8;
-}
-
-.prompt-hint code {
-  background: #edf2f7;
-  border-radius: 3px;
-  padding: 1px 5px;
-  font-family: 'Courier New', monospace;
-  font-size: 11px;
-  color: #2d3748;
-}
-
-.prompt-textarea {
-  width: 100%;
-  min-height: 280px;
-  padding: 12px 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 12.5px;
-  font-family: 'Courier New', monospace;
-  line-height: 1.6;
-  color: #1a202c;
-  background: #f7fafc;
-  resize: vertical;
-  transition: border-color 0.15s, background 0.15s;
-}
-
-.prompt-textarea:not([readonly]) {
-  background: white;
-  border-color: #1a56db;
-  box-shadow: 0 0 0 2px rgba(26, 86, 219, 0.1);
-}
-
-.prompt-textarea:focus {
-  outline: none;
-  border-color: #1a56db;
-  background: white;
-}
-
-/* Verzióválasztó */
-.version-select {
-  padding: 4px 8px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  font-size: 12px;
-  font-family: inherit;
-  color: #4a5568;
-  background: white;
-  cursor: pointer;
-  max-width: 200px;
-}
-
-.version-select:focus {
-  outline: none;
-  border-color: #1a56db;
-}
-
 /* ==========================================
-   RESZPONZÍV – PROMPT PANEL
+   PIPELINE EDITOR
    ========================================== */
-@media (max-width: 768px) {
-  .prompt-tabs {
-    flex-wrap: wrap;
-  }
-
-  .prompt-tab {
-    font-size: 12px;
-    padding: 6px 10px;
-  }
-
-  .prompt-header-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .prompt-actions {
-    width: 100%;
-  }
-
-  .model-selector-wrap {
-    flex-wrap: wrap;
-  }
-
-  .version-select {
-    max-width: 100%;
-    width: 100%;
-  }
-}
-
-/* ==========================================
-   TONE GUIDE SZEKCIÓ
-   ========================================== */
-.tone-guide-hint {
-  background: #f0fdf4;
-  border-color: #86efac;
-  color: #166534;
-}
-
-.tone-guide-hint code {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.tone-guide-textarea {
-  min-height: 400px !important;
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-/* ==========================================
-   PIPELINE EDITOR – v5
-   ========================================== */
-
-/* Pipeline toolbar */
 .pipeline-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 14px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #eef2f6;
 }
 
 .pipeline-toolbar-left {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .pipeline-toolbar-right {
@@ -970,78 +549,57 @@ tbody td {
   white-space: nowrap;
 }
 
-/* Pipeline legend */
-.pipeline-legend {
+.pipeline-hint {
   font-size: 12px;
   color: #718096;
+  background: #f7fbfb;
+  border: 1px solid #c6e8e8;
+  border-radius: 8px;
+  padding: 10px 14px;
   margin-bottom: 16px;
-  padding: 8px 12px;
-  background: #f7fafc;
-  border-radius: 6px;
-  border: 1px solid #e2e8f0;
+  line-height: 1.5;
 }
 
-/* Type badges */
-.type-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
+.pipeline-hint code {
+  background: #e0f0f0;
+  color: #284b63;
+  padding: 1px 5px;
+  border-radius: 3px;
   font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
-.type-badge.type-generate {
-  background: #c6f6d5;
-  color: #22543d;
-}
-
-.type-badge.type-check {
-  background: #bee3f8;
-  color: #2a4365;
-}
-
-.type-badge.type-fix {
-  background: #fefcbf;
-  color: #744210;
-}
-
-/* Pipeline steps list */
+/* Pipeline steps */
 .pipeline-steps-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-/* Individual pipeline step */
 .pipeline-step {
-  border: 2px solid #e2e8f0;
-  border-radius: 10px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
   overflow: hidden;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  border-left: 4px solid #3C6E71;
 }
 
-.pipeline-step.type-step-generate {
-  border-left: 4px solid #38a169;
+.pipeline-step:hover {
+  border-color: #b0ccd0;
+  box-shadow: 0 2px 10px rgba(40, 75, 99, 0.08);
 }
 
-.pipeline-step.type-step-check {
-  border-left: 4px solid #3182ce;
+.pipeline-step.disabled {
+  opacity: 0.55;
+  border-left-color: #cbd5e0;
 }
 
-.pipeline-step.type-step-fix {
-  border-left: 4px solid #d69e2e;
-}
-
-/* Step header */
 .step-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  background: #f7fafc;
-  border-bottom: 1px solid #e2e8f0;
+  background: #f7fbfb;
+  border-bottom: 1px solid #eef2f6;
   gap: 10px;
   flex-wrap: wrap;
 }
@@ -1050,8 +608,8 @@ tbody td {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
   flex: 1;
+  flex-wrap: wrap;
 }
 
 .step-header-right {
@@ -1066,7 +624,7 @@ tbody td {
   justify-content: center;
   width: 24px;
   height: 24px;
-  background: #2b6cb0;
+  background: #284b63;
   color: white;
   border-radius: 50%;
   font-size: 12px;
@@ -1077,58 +635,39 @@ tbody td {
 .step-name-input {
   border: 1px solid #cbd5e0;
   border-radius: 6px;
-  padding: 4px 8px;
+  padding: 5px 10px;
   font-size: 13px;
   font-weight: 600;
   color: #2d3748;
   background: white;
-  min-width: 150px;
-  max-width: 260px;
+  min-width: 160px;
+  max-width: 300px;
+  font-family: inherit;
+  transition: border-color 0.15s;
 }
 
 .step-name-input:focus {
   outline: none;
-  border-color: #3182ce;
-  box-shadow: 0 0 0 2px rgba(49,130,206,0.2);
+  border-color: #3C6E71;
+  box-shadow: 0 0 0 2px rgba(60, 110, 113, 0.2);
 }
 
-.step-type-select {
-  border: 1px solid #cbd5e0;
-  border-radius: 6px;
-  padding: 4px 8px;
-  font-size: 12px;
-  font-weight: 600;
-  background: white;
-  cursor: pointer;
-}
-
-.step-type-select:focus {
-  outline: none;
-  border-color: #3182ce;
-}
-
-/* Toggle switch */
 .toggle-label {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   cursor: pointer;
   font-size: 12px;
   color: #718096;
 }
 
 .step-enabled-toggle {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   cursor: pointer;
-  accent-color: #3182ce;
+  accent-color: #3C6E71;
 }
 
-.toggle-text {
-  font-size: 12px;
-}
-
-/* Step body */
 .step-body {
   padding: 12px 14px;
   background: white;
@@ -1137,60 +676,130 @@ tbody td {
 .step-prompt-textarea {
   width: 100%;
   border: 1px solid #e2e8f0;
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 10px 12px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-family: 'Consolas', 'Monaco', monospace;
-  line-height: 1.5;
+  line-height: 1.55;
   resize: vertical;
   color: #2d3748;
   background: #fafafa;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background 0.2s;
+  min-height: 120px;
 }
 
 .step-prompt-textarea:focus {
   outline: none;
-  border-color: #3182ce;
+  border-color: #3C6E71;
   background: white;
-  box-shadow: 0 0 0 2px rgba(49,130,206,0.15);
+  box-shadow: 0 0 0 2px rgba(60, 110, 113, 0.15);
 }
 
-/* Extra small button */
-.btn-xs {
-  padding: 3px 8px !important;
-  font-size: 11px !important;
-  border-radius: 4px !important;
-  min-height: unset !important;
-}
-
-/* Variables panel */
-.variables-panel {
-  background: #f0f7ff;
-  border: 1px solid #bee3f8;
-  border-radius: 8px;
-  padding: 14px 16px;
-  margin-bottom: 14px;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.variables-content {
+/* Lépés hozzáadása */
+.btn-add-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  background: white;
+  border: 2px dashed #3C6E71;
+  border-radius: 10px;
+  color: #3C6E71;
   font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.btn-add-step:hover {
+  background: #eef6f6;
+  border-color: #284b63;
+  color: #284b63;
+}
+
+/* ==========================================
+   VÁLTOZÓK MODAL
+   ========================================== */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(40, 75, 99, 0.5);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-overlay.open {
+  display: flex;
+}
+
+.modal-box {
+  background: white;
+  border-radius: 16px;
+  max-width: 680px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(40, 75, 99, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid #eef2f6;
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 1;
+}
+
+.modal-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #284b63;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #718096;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.modal-close:hover {
+  background: #f7fafc;
+  color: #2d3748;
+}
+
+.modal-body {
+  padding: 20px 24px;
 }
 
 .var-group {
-  margin-bottom: 12px;
+  margin-bottom: 20px;
 }
 
 .var-group h4 {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #2b6cb0;
-  margin-bottom: 6px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid #bee3f8;
+  letter-spacing: 0.8px;
+  color: #3C6E71;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1.5px solid #e0f0f0;
 }
 
 .var-table {
@@ -1198,9 +807,14 @@ tbody td {
   border-collapse: collapse;
 }
 
+.var-table tr:hover td {
+  background: #f7fbfb;
+}
+
 .var-table td {
-  padding: 3px 8px;
+  padding: 5px 8px;
   vertical-align: top;
+  font-size: 13px;
 }
 
 .var-table td:first-child {
@@ -1208,32 +822,152 @@ tbody td {
 }
 
 .var-table code {
-  background: #ebf4ff;
-  color: #2b6cb0;
-  padding: 1px 5px;
-  border-radius: 3px;
+  background: #e0f0f0;
+  color: #284b63;
+  padding: 2px 6px;
+  border-radius: 4px;
   font-size: 12px;
   font-family: 'Consolas', monospace;
+  cursor: pointer;
+  transition: background 0.15s;
 }
 
-/* Tone Guide textarea */
-.tone-guide-textarea {
-  min-height: 300px;
-  font-family: 'Segoe UI', system-ui, sans-serif !important;
-  font-size: 13px !important;
+.var-table code:hover {
+  background: #c6e4e4;
 }
 
+/* ==========================================
+   TONE GUIDE
+   ========================================== */
 .tone-guide-hint {
   background: #fffbeb;
   border: 1px solid #f6e05e;
-  border-radius: 6px;
-  padding: 8px 12px;
-  margin-bottom: 12px;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
   font-size: 12px;
   color: #744210;
+  line-height: 1.5;
 }
 
-/* Accordion arrow open state */
-.accordion-arrow.open {
-  transform: rotate(180deg);
+.tone-guide-textarea {
+  width: 100%;
+  min-height: 280px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-family: 'Inter', system-ui, sans-serif;
+  line-height: 1.6;
+  resize: vertical;
+  color: #2d3748;
+  transition: border-color 0.2s;
+}
+
+.tone-guide-textarea:focus {
+  outline: none;
+  border-color: #3C6E71;
+  box-shadow: 0 0 0 3px rgba(60, 110, 113, 0.15);
+}
+
+/* ==========================================
+   TOAST ÉRTESÍTÉSEK
+   ========================================== */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toast {
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: white;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  animation: slideIn 0.25s ease;
+  max-width: 320px;
+}
+
+.toast-success { background: linear-gradient(135deg, #276749, #38a169); }
+.toast-error   { background: linear-gradient(135deg, #c53030, #e53e3e); }
+.toast-info    { background: linear-gradient(135deg, #284b63, #3C6E71); }
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* ==========================================
+   LETÖLTÉS SZEKCIÓ
+   ========================================== */
+.download-section {
+  display: none;
+  margin-top: 20px;
+  padding: 18px 20px;
+  background: linear-gradient(135deg, rgba(40, 75, 99, 0.05), rgba(60, 110, 113, 0.08));
+  border: 1.5px solid rgba(60, 110, 113, 0.25);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.download-section.visible {
+  display: block;
+}
+
+.download-section p {
+  font-size: 14px;
+  color: #284b63;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+/* ==========================================
+   ÜRES ÁLLAPOT
+   ========================================== */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #a0aec0;
+}
+
+.empty-state .empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  display: block;
+}
+
+.empty-state p {
+  font-size: 14px;
+}
+
+/* ==========================================
+   SEGÉDOSZTÁLYOK
+   ========================================== */
+.hidden { display: none !important; }
+.flex   { display: flex; }
+.gap-8  { gap: 8px; }
+.gap-12 { gap: 12px; }
+.mt-12  { margin-top: 12px; }
+.mt-16  { margin-top: 16px; }
+
+/* ==========================================
+   RESZPONZÍV
+   ========================================== */
+@media (max-width: 768px) {
+  .app-wrapper { padding: 12px 10px 32px; }
+  .app-header  { padding: 18px 20px; }
+  .app-header h1 { font-size: 18px; }
+  .card-body   { padding: 16px; }
+  .generation-controls { flex-direction: column; align-items: stretch; }
+  .model-select-group  { flex-direction: column; align-items: stretch; }
+  .pipeline-toolbar    { flex-direction: column; }
+  .step-header         { flex-direction: column; align-items: flex-start; }
+  .step-name-input     { max-width: 100%; }
+  .modal-box           { max-height: 90vh; }
 }

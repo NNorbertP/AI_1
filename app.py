@@ -7,7 +7,7 @@ import threading
 from queue import Queue
 from datetime import datetime
 
-from flask import Flask, request, jsonify, render_template, Response, send_file, after_this_request
+from flask import Flask, request, jsonify, render_template, Response, send_file
 from werkzeug.utils import secure_filename
 import pandas as pd
 import openpyxl
@@ -103,7 +103,6 @@ DEFAULT_PIPELINE = {
         {
             "id": 1,
             "name": "Cikk generálás",
-            "type": "generate",
             "enabled": True,
             "prompt": """Te egy senior SEO-szövegíró és tartalomstratéga vagy. Magyarul írsz, természetesen, marketing-szag nélkül, de konverzióra optimalizálva.
 Írj egy minőségi, keresőoptimalizált blogcikket a következő szolgáltatás oldal támogatására, és organikus forgalom + érdeklődők szerzésére.
@@ -143,60 +142,34 @@ Stílus és hangnem útmutató:
         },
         {
             "id": 2,
-            "name": "Tényellenőrzés",
-            "type": "check",
+            "name": "Tényellenőrzés és javítás",
             "enabled": True,
-            "prompt": """Az alábbi cikket ellenőrizd le: tartalmaz-e olyan konkrét állítást a cégről, amely nem ellenőrizhető a cég honlapjáról ({ceg_url}), vagy nyilvánvalóan kitalált/valótlan? Csak akkor jelezz problémát, ha egyértelmű kitalált állítás van. Válaszolj így: "OK" ha nincs probléma, vagy "JAVÍTANDÓ: [probléma rövid leírása]" ha van.
+            "prompt": """Az alábbi cikket ellenőrizd le két szempontból:
+
+1. TÉNYELLENŐRZÉS: Tartalmaz-e olyan konkrét állítást a cégről ({ceg_url}), amely nyilvánvalóan kitalált vagy nem ellenőrizhető? Csak egyértelmű kitalált állítást jelezz.
+
+2. FORMÁTUM ÉS NYELVEZET: Szerepelnek-e tiltott fordulatok? Tiltott: "Az oldal szerint", "A leírás szerint", "Ez nem bénázás", "Tapasztalatból mondom", "ez nem csak", "talán", "nagyjából", "bizonyos értelemben". Van-e legalább 2 db ## jelű H2 alcím?
+
+Ha mindkét szempont rendben van, add vissza a cikket változatlanul.
+Ha valamelyik szempontban probléma van, javítsd ki a problémát és add vissza a teljes javított cikket.
+
+Fontos: CSAK a cikk szövegét add vissza, semmi mást (sem magyarázatot, sem megjegyzést).
 
 Cikk:
 {aktualis_cikk}"""
         },
         {
             "id": 3,
-            "name": "Link és UTM ellenőrzés",
-            "type": "check",
+            "name": "Link és UTM ellenőrzés és javítás",
             "enabled": True,
-            "prompt": """Ellenőrizd az alábbi cikket:
-1. Tartalmaz-e olyan linket, amelyben utm_ paraméter szerepel? Ha igen, jelöld meg pontosan melyik link és mi a probléma.
-2. Szerepelnek-e a cikkben a következő elvárt kulcsszavak/linkek: {elvart_linkek}? Ha valamelyik hiányzik, jelöld meg.
+            "prompt": """Az alábbi cikket ellenőrizd le és szükség esetén javítsd:
 
-Válaszolj így:
-- "OK" ha minden rendben
-- "JAVÍTANDÓ: [pontos probléma leírása]" ha van probléma
+1. UTM PARAMÉTEREK: Ha bármely linkben utm_ paraméter szerepel, távolítsd el.
+2. ELVÁRT LINKEK: Szerepelnek-e a cikkben a következő kulcsszavak/linkek: {elvart_linkek}? Ha valamelyik hiányzik, illeszd be természetes módon a szövegbe.
+
+Add vissza a teljes (javított vagy változatlan) cikket. CSAK a cikk szövegét add vissza, semmi mást.
 
 Cikk:
-{aktualis_cikk}"""
-        },
-        {
-            "id": 4,
-            "name": "Formátum és nyelvezet ellenőrzés",
-            "type": "check",
-            "enabled": True,
-            "prompt": """Ellenőrizd az alábbi magyar nyelvű cikket az alábbi szempontok szerint:
-
-1. Szerepelnek-e benne tiltott fordulatok? Tiltott: "Az oldal szerint", "A leírás szerint", "Ez nem bénázás", "Tapasztalatból mondom", "ez nem csak", "talán", "nagyjából", "bizonyos értelemben", "felkiáltójel"
-2. A mondatok megfelelően rövidek-e, van-e túl hosszú, nehezen érthető mondat?
-3. Megfelelő-e a bekezdésstruktúra (1-3 mondatos blokkok)?
-4. Van-e ## jelű H2 alcím a cikkben (legalább 2 kell)?
-
-Válaszolj így:
-- "OK" ha minden rendben
-- "JAVÍTANDÓ: [pontos probléma leírása]" ha van probléma
-
-Cikk:
-{aktualis_cikk}"""
-        },
-        {
-            "id": 5,
-            "name": "Javítás",
-            "type": "fix",
-            "enabled": True,
-            "prompt": """Az alábbi cikket kérlek javítsd ki a megjelölt problémák alapján. Csak a teljes javított cikket add vissza, semmi mást.
-
-Problémák:
-{javitasi_problemak}
-
-Eredeti cikk:
 {aktualis_cikk}"""
         }
     ],
@@ -223,17 +196,17 @@ def save_pipeline_data(steps):
     data = load_pipeline_data()
     old_steps = data.get('steps', [])
     versions = data.get('versions', [])
-    
+
     if old_steps:
         versions.append({
             'version': len(versions) + 1,
             'steps': old_steps,
             'saved_at': datetime.now().isoformat(timespec='seconds')
         })
-    
+
     data['steps'] = steps
     data['versions'] = versions
-    
+
     with open(PIPELINE_PATH, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -334,35 +307,8 @@ def format_markdown_to_docx(doc, text):
             add_formatted_runs(p, stripped)
 
 # ==========================================
-# CIKK GENERÁLÓ LOGIKA (PIPELINE)
+# CIKK GENERÁLÓ LOGIKA (EGYSZERŰSÍTETT PIPELINE)
 # ==========================================
-def validate_article(text, keywords):
-    """Kód alapú ellenőrzések: UTM, tiltott fordulatok, szószám, kulcsszavak."""
-    errors = []
-    if "utm_" in text.lower():
-        errors.append("A cikkben található linkek utm_ paramétert tartalmaznak.")
-
-    for phrase in FORBIDDEN_PHRASES:
-        if phrase.lower() in text.lower():
-            errors.append(f"Tiltott kifejezés szerepel a szövegben: '{phrase}'")
-
-    word_count = len(re.findall(r'\b\w+\b', text))
-    if word_count < 600:
-        errors.append(f"A cikk túl rövid ({word_count} szó). Minimum 600 szónak kell lennie.")
-    elif word_count > 1000:
-        errors.append(f"A cikk túl hosszú ({word_count} szó). Maximum 1000 szónak kell lennie.")
-
-    missing_keywords = []
-    text_lower = text.lower()
-    for kw in keywords:
-        if kw.lower() not in text_lower:
-            missing_keywords.append(kw)
-
-    if missing_keywords:
-        errors.append(f"A következő kulcsszavak hiányoznak a szövegből: {', '.join(missing_keywords)}")
-
-    return errors
-
 def safe_format(template, variables):
     """Biztonságos string formázás, ami figyelmen kívül hagyja a hiányzó változókat."""
     class SafeDict(dict):
@@ -397,7 +343,7 @@ def generate_single_article(row_data, job_id, row_index, model):
 
     # Változók előkészítése
     vars_dict = {k: str(v) for k, v in row_data.items()}
-    
+
     links = []
     keywords = []
     for i in range(1, 6):
@@ -406,7 +352,7 @@ def generate_single_article(row_data, job_id, row_index, model):
         if kw and url:
             links.append(f"- [{kw}]({url})")
             keywords.append(kw)
-            
+
     vars_dict['link_db'] = str(len(links))
     vars_dict['linkek_felsorolasa'] = "\n".join(links)
     vars_dict['elvart_linkek'] = ", ".join(keywords) if keywords else "nincs megadva"
@@ -430,87 +376,58 @@ def generate_single_article(row_data, job_id, row_index, model):
     vars_dict['tone_guide'] = load_tone_guide()
     vars_dict['aktualis_cikk'] = ""
     vars_dict['elozo_kimenet'] = ""
-    vars_dict['javitasi_problemak'] = ""
 
+    # Pipeline betöltése
     pipeline = load_pipeline_data()
     steps = [s for s in pipeline.get('steps', []) if s.get('enabled', True)]
-    
-    generate_steps = [s for s in steps if s['type'] == 'generate']
-    check_steps = [s for s in steps if s['type'] == 'check']
-    fix_steps = [s for s in steps if s['type'] == 'fix']
 
-    if not generate_steps:
-        update_status('Hiba', 'Nincs engedélyezett generáló lépés a pipeline-ban!')
+    if not steps:
+        update_status('Hiba', 'Nincs engedélyezett lépés a pipeline-ban!')
         return None
 
-    # 1. Fő generálási fázis (összes generate lépés futtatása sorban)
-    update_status('Folyamatban', 'Generálás indítása...')
-    
-    for step in generate_steps:
+    update_status('Folyamatban', 'Pipeline indítása...')
+
+    # Szekvenciális futtatás – minden lépés sorban fut
+    for step_num, step in enumerate(steps, start=1):
+        step_name = step.get('name', f'{step_num}. lépés')
+        update_status('Folyamatban', f'{step_name}...')
+
         prompt = safe_format(step['prompt'], vars_dict)
         output = call_llm(prompt, model, temperature=0.7)
-        
+
         if output.startswith("API Hiba:"):
-            update_status('Hiba', output)
+            update_status('Hiba', f'{step_name}: {output}')
             return None
-            
-        vars_dict[f"lepes_{step['id']}_kimenet"] = output
+
+        # Változók frissítése a következő lépésekhez
+        step_id = step.get('id', step_num)
+        vars_dict[f'lepes_{step_id}_kimenet'] = output
+        vars_dict[f'lepes_{step_num}_kimenet'] = output  # sorszám alapján is
         vars_dict['elozo_kimenet'] = output
         vars_dict['aktualis_cikk'] = output
+
         time.sleep(1)
 
-    # 2. Ellenőrzési és javítási ciklus (max 2 kör)
-    for javitas_kor in range(2):
-        errors = []
-        
-        # Kód alapú ellenőrzés
-        kod_errors = validate_article(vars_dict['aktualis_cikk'], keywords)
-        errors.extend(kod_errors)
+    # Az utolsó lépés kimenete lesz a végső cikk
+    final_article = vars_dict['aktualis_cikk']
 
-        # AI check lépések
-        for step in check_steps:
-            update_status('Folyamatban', f"{step['name']}...")
-            prompt = safe_format(step['prompt'], vars_dict)
-            output = call_llm(prompt, model, temperature=0.2)
-            
-            vars_dict[f"lepes_{step['id']}_kimenet"] = output
-            vars_dict['elozo_kimenet'] = output
-            
-            if output.startswith("JAVÍTANDÓ:"):
-                errors.append(f"{step['name']} hiba: {output[10:].strip()}")
-            time.sleep(1)
+    # Kód alapú utóellenőrzés (UTM, szószám)
+    warnings = []
+    if "utm_" in final_article.lower():
+        warnings.append("Figyelem: utm_ paraméter maradt a cikkben")
 
-        if not errors:
-            if javitas_kor > 0:
-                update_status('Kész', f'Javítva {javitas_kor}. körben')
-            else:
-                update_status('Kész', 'Sikeres generálás')
-            return vars_dict['aktualis_cikk']
+    word_count = len(re.findall(r'\b\w+\b', final_article))
+    if word_count < 600:
+        warnings.append(f"Rövid cikk ({word_count} szó)")
+    elif word_count > 1000:
+        warnings.append(f"Hosszú cikk ({word_count} szó)")
 
-        # Ha van hiba, de nincs fix lépés
-        if not fix_steps:
-            update_status('Hiba', f'Hibák találhatók, de nincs javítási lépés engedélyezve. ({len(errors)} hiba)')
-            return vars_dict['aktualis_cikk']
+    if warnings:
+        update_status('Kész', 'Kész (figyelmeztetések: ' + '; '.join(warnings) + ')')
+    else:
+        update_status('Kész', f'Sikeres generálás ({word_count} szó)')
 
-        # Javítás futtatása
-        update_status('Folyamatban', f'Javítás folyamatban ({javitas_kor+1}/2)... Hibák: {len(errors)}')
-        vars_dict['javitasi_problemak'] = "\n".join('- ' + e for e in errors)
-        
-        for step in fix_steps:
-            prompt = safe_format(step['prompt'], vars_dict)
-            output = call_llm(prompt, model, temperature=0.5)
-            
-            if output.startswith("API Hiba:"):
-                update_status('Hiba', f"Javítási {output}")
-                return None
-                
-            vars_dict[f"lepes_{step['id']}_kimenet"] = output
-            vars_dict['elozo_kimenet'] = output
-            vars_dict['aktualis_cikk'] = output
-            time.sleep(1)
-
-    update_status('Hiba', 'Nem sikerült javítani a hibákat 2 kör alatt.')
-    return vars_dict['aktualis_cikk']
+    return final_article
 
 def generation_worker(job_id):
     job = generation_jobs[job_id]
@@ -682,7 +599,7 @@ def update_pipeline():
     steps = data.get('steps', [])
     if not steps:
         return jsonify({'error': 'A pipeline nem lehet üres'}), 400
-    
+
     save_pipeline_data(steps)
     return jsonify({'success': True, 'message': 'Pipeline sikeresen mentve'})
 
@@ -697,11 +614,11 @@ def get_pipeline_versions():
 def restore_pipeline_version(version_number):
     data = load_pipeline_data()
     versions = data.get('versions', [])
-    
+
     target = next((v for v in versions if v['version'] == version_number), None)
     if not target:
         return jsonify({'error': f'Nem található {version_number}. verzió'}), 404
-        
+
     save_pipeline_data(target['steps'])
     return jsonify({'success': True, 'message': f'{version_number}. verzió visszaállítva'})
 
@@ -715,7 +632,7 @@ def update_tone_guide():
     new_text = data.get('text', '').strip()
     if not new_text:
         return jsonify({'error': 'A tone guide nem lehet üres'}), 400
-    
+
     save_tone_guide(new_text)
     return jsonify({'success': True, 'message': 'Tone guide mentve'})
 
@@ -738,10 +655,9 @@ def get_variables():
         },
         "Rendszer változók": {
             "{tone_guide}": "A Tone Guide teljes szövege",
-            "{aktualis_cikk}": "Az utolsó generáló/javító lépés kimenete (ez lesz a végső cikk)",
+            "{aktualis_cikk}": "Az előző lépés kimenete (ez lesz a végső cikk az utolsó lépés után)",
             "{elozo_kimenet}": "A közvetlenül előző lépés teljes GPT válasza",
-            "{lepes_N_kimenet}": "Az N. azonosítójú lépés GPT válasza",
-            "{javitasi_problemak}": "A check lépések által talált hibák listája (csak fix lépésben hasznos)"
+            "{lepes_N_kimenet}": "Az N. sorszámú (vagy azonosítójú) lépés GPT válasza"
         }
     }
     return jsonify(variables)

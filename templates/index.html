@@ -11,71 +11,61 @@
 <div class="app-wrapper">
 
   <!-- FEJLÉC -->
-  <div class="app-header">
+  <header class="app-header">
     <span class="icon">✍️</span>
     <div>
       <h1>SEO Cikk Generáló</h1>
-      <p>Tölts fel egy Excel fájlt, szerkeszd a sorokat, majd generáld le az összes cikket egyszerre</p>
+      <p>Töltsd fel az Excel sablont, szerkeszd a sorokat, majd indítsd el a generálást</p>
     </div>
-  </div>
+  </header>
 
-  <!-- 1. LÉPÉS: FELTÖLTÉS -->
+  <!-- 1. SZEKCIÓ: Excel feltöltés és táblázat -->
   <div class="card">
-    <div class="card-title">
-      <span class="step-badge">1</span>
-      Excel fájl feltöltése
+    <div class="card-header">
+      <span class="card-icon">📂</span>
+      <h2>Excel feltöltés és adatok</h2>
     </div>
+    <div class="card-body">
 
-    <div id="uploadZone" class="upload-zone">
-      <span class="upload-icon">📂</span>
-      <p>Húzd ide az Excel fájlt, vagy kattints a feltöltéshez</p>
-      <p class="hint">Csak .xlsx formátum támogatott</p>
-      <button class="btn-upload" onclick="document.getElementById('fileInput').click()">Fájl kiválasztása</button>
+      <!-- Feltöltési zóna -->
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept=".xlsx">
+        <span class="upload-icon">📊</span>
+        <p>Kattints vagy húzd ide az Excel fájlt</p>
+        <small>Csak .xlsx formátum elfogadott</small>
+        <div class="upload-filename hidden" id="uploadFilename"></div>
+      </div>
+
+      <!-- Táblázat -->
+      <div id="tableContainer" class="hidden mt-16">
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead id="tableHead"></thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+        <button class="btn-add-row" onclick="addEmptyRow()">
+          <span>＋</span> Új sor hozzáadása
+        </button>
+      </div>
+
     </div>
-
-    <input type="file" id="fileInput" accept=".xlsx">
-
-    <div id="uploadSuccess" class="upload-success" style="display:none"></div>
   </div>
 
-  <!-- 2. LÉPÉS: TÁBLÁZAT -->
-  <div class="card" id="tableSection" style="display:none">
-    <div class="card-title">
-      <span class="step-badge">2</span>
-      Adatok szerkesztése
+  <!-- 2. SZEKCIÓ: Generálás vezérlő -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-icon">⚡</span>
+      <h2>Generálás</h2>
     </div>
+    <div class="card-body">
 
-    <!-- Statisztika -->
-    <div class="stats-row">
-      <div class="stat-card">
-        <div class="stat-number" id="statTotal">0</div>
-        <div class="stat-label">Összes sor</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-number" id="statWaiting" style="color:#a0aec0">0</div>
-        <div class="stat-label">Várakozik</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-number" id="statDone" style="color:#38a169">0</div>
-        <div class="stat-label">Kész</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-number" id="statErrors" style="color:#e53e3e">0</div>
-        <div class="stat-label">Hiba</div>
-      </div>
-    </div>
-
-    <!-- Eszköztár: modellválasztó + generálás gomb -->
-    <div class="table-toolbar">
-      <span class="table-info">
-        Kattints bármelyik cellára a szerkesztéshez
-      </span>
-      <div class="table-actions">
-        <div class="model-selector-wrap">
-          <label for="modelSelect" class="model-label">Modell:</label>
-          <select id="modelSelect" class="model-select">
+      <div class="generation-controls">
+        <div class="model-select-group">
+          <label for="modelSelect">Modell:</label>
+          <select class="model-select" id="modelSelect">
             <option value="gpt-5.4">gpt-5.4</option>
-            <option value="gpt-5.4-mini" selected>gpt-5.4-mini (alapértelmezett)</option>
+            <option value="gpt-5.4-mini" selected>gpt-5.4-mini</option>
             <option value="gpt-5.4-nano">gpt-5.4-nano</option>
             <option value="gpt-5.4-pro">gpt-5.4-pro</option>
             <option value="gpt-4.1">gpt-4.1</option>
@@ -83,148 +73,129 @@
             <option value="gpt-4.1-nano">gpt-4.1-nano</option>
           </select>
         </div>
-        <button class="btn btn-primary" id="startGenerationBtn">
-          ▶ Generálás indítása
+
+        <button class="btn btn-primary btn-lg" id="startBtn" onclick="startGeneration()" disabled>
+          <span>▶</span> Generálás indítása
         </button>
       </div>
-    </div>
 
-    <!-- Táblázat -->
-    <div class="table-container">
-      <table>
-        <thead id="tableHead"></thead>
-        <tbody id="tableBody"></tbody>
-      </table>
-      <button class="add-row-btn" id="addRowBtn">
-        + Új sor hozzáadása
-      </button>
-    </div>
-  </div>
-
-  <!-- 3. LÉPÉS: FOLYAMATJELZŐ -->
-  <div class="card" id="progressSection" style="display:none">
-    <div class="card-title">
-      <span class="step-badge">3</span>
-      Generálás folyamata
-    </div>
-
-    <div class="progress-header">
-      <span class="progress-label">Cikkek generálása</span>
-      <span class="progress-count" id="progressCount">0 / 0 cikk kész</span>
-    </div>
-    <div class="progress-bar-wrapper">
-      <div class="progress-bar-fill" id="progressBarFill"></div>
-    </div>
-    <p class="progress-status-text" id="progressStatusText">Inicializálás...</p>
-  </div>
-
-  <!-- 4. LÉPÉS: LETÖLTÉS -->
-  <div class="card" id="downloadSection" style="display:none">
-    <div class="card-title">
-      <span class="step-badge">4</span>
-      Letöltés
-    </div>
-
-    <div class="download-box">
-      <div class="download-info">
-        <span class="download-icon">📄</span>
-        <div class="download-text">
-          <h3>Word dokumentum kész</h3>
-          <p>Az összes cikk formázva, H2 alcímekkel és kattintható linkekkel</p>
+      <!-- Progress -->
+      <div class="progress-section hidden" id="progressSection">
+        <div class="progress-label">
+          <span id="progressText">0 / 0 cikk kész</span>
+          <span id="progressPct">0%</span>
+        </div>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="progressBar"></div>
         </div>
       </div>
-      <a id="downloadLink" href="#" class="btn btn-success" download>
-        ⬇ Word letöltése
-      </a>
+
+      <!-- Letöltés -->
+      <div class="download-section" id="downloadSection">
+        <p>✅ A generálás befejeződött! A Word dokumentum letölthető.</p>
+        <a class="btn btn-success btn-lg" id="downloadBtn" href="#" download>
+          <span>⬇</span> Word letöltése
+        </a>
+      </div>
+
     </div>
   </div>
 
-  <!-- PIPELINE EDITOR (accordion) -->
-  <div class="card prompt-card" id="pipelineCard">
-    <button class="prompt-accordion-btn" id="pipelineAccordionBtn" onclick="togglePipelinePanel()">
-      <span>⚙️ Pipeline lépések szerkesztése</span>
-      <span class="accordion-arrow" id="pipelineAccordionArrow">▼</span>
-    </button>
+  <!-- 3. SZEKCIÓ: Pipeline editor (accordion) -->
+  <div class="card">
+    <div class="accordion-header" id="pipelineAccordionHeader" onclick="toggleAccordion('pipeline')">
+      <div class="accordion-title">
+        <span class="accordion-icon">⚙️</span>
+        Pipeline szerkesztő
+      </div>
+      <span class="accordion-arrow" id="pipelineArrow">▼</span>
+    </div>
+    <div class="accordion-body" id="pipelineAccordionBody">
 
-    <div class="prompt-panel" id="pipelinePanel" style="display:none">
+      <div class="pipeline-hint">
+        Minden lépés egy GPT API hívás. A lépések sorban futnak, az előző kimenet elérhető a következő lépésben.
+        Használható változók: <code>{cikk_cim}</code>, <code>{ceg_url}</code>, <code>{tone_guide}</code>,
+        <code>{aktualis_cikk}</code>, <code>{elozo_kimenet}</code>, <code>{lepes_N_kimenet}</code> és mások.
+      </div>
 
-      <!-- Eszköztár -->
+      <!-- Pipeline toolbar -->
       <div class="pipeline-toolbar">
         <div class="pipeline-toolbar-left">
-          <button class="btn btn-secondary btn-sm" id="toggleVarsBtn" onclick="toggleVariablesPanel()">
-            ❓ Elérhető változók
+          <button class="btn btn-primary btn-sm" onclick="savePipeline()">
+            <span>💾</span> Pipeline mentése
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="openVariablesModal()">
+            <span>❓</span> Elérhető változók
           </button>
         </div>
         <div class="pipeline-toolbar-right">
           <div class="pipeline-version-group">
-            <label class="version-label">Verzióelőzmények:</label>
-            <select id="pipelineVersionsSelect" class="version-select" onchange="previewPipelineVersion(this.value)">
-              <option value="">-- Válassz verziót --</option>
+            <span class="version-label">Verzió:</span>
+            <select class="model-select" id="pipelineVersionSelect" style="min-width:160px" onchange="onVersionSelectChange()">
+              <option value="">– Verzióelőzmények –</option>
             </select>
-            <button class="btn btn-secondary btn-sm" id="restorePipelineBtn" onclick="restorePipelineVersion()" style="display:none">
+            <button class="btn btn-ghost btn-sm" id="restoreVersionBtn" onclick="restorePipelineVersion()" disabled>
               ↩ Visszaállítás
             </button>
           </div>
-          <button class="btn btn-secondary btn-sm" id="addStepBtn" onclick="addPipelineStep()">
-            + Lépés hozzáadása
-          </button>
-          <button class="btn btn-primary btn-sm" id="savePipelineBtn" onclick="savePipeline()">
-            💾 Pipeline mentése
-          </button>
         </div>
-      </div>
-
-      <!-- Változók súgó panel -->
-      <div id="variablesPanel" class="variables-panel" style="display:none">
-        <div id="variablesContent" class="variables-content">Betöltés...</div>
-      </div>
-
-      <!-- Pipeline jelmagyarázat -->
-      <div class="pipeline-legend">
-        <span class="type-badge type-generate">generate</span> cikket ír (az utolsó ilyen lépés lesz a végső cikk)
-        &nbsp;&nbsp;
-        <span class="type-badge type-check">check</span> ellenőrző (JAVÍTANDÓ: válasz esetén javítás indul)
-        &nbsp;&nbsp;
-        <span class="type-badge type-fix">fix</span> javítás (csak ha volt check hiba)
       </div>
 
       <!-- Lépések listája -->
-      <div id="pipelineStepsList" class="pipeline-steps-list">
-        <!-- Dinamikusan töltődik -->
+      <div class="pipeline-steps-list" id="pipelineStepsList">
+        <!-- JS tölti be -->
+      </div>
+
+      <button class="btn-add-step" onclick="addPipelineStep()">
+        <span>＋</span> Lépés hozzáadása
+      </button>
+
+    </div>
+  </div>
+
+  <!-- 4. SZEKCIÓ: Tone Guide (accordion) -->
+  <div class="card">
+    <div class="accordion-header" id="toneGuideAccordionHeader" onclick="toggleAccordion('toneGuide')">
+      <div class="accordion-title">
+        <span class="accordion-icon">🎨</span>
+        Tone Guide – Stílus és hangnem útmutató
+      </div>
+      <span class="accordion-arrow" id="toneGuideArrow">▼</span>
+    </div>
+    <div class="accordion-body" id="toneGuideAccordionBody">
+
+      <div class="tone-guide-hint">
+        Ez a szöveg beillesztésre kerül a promptba a <code>{tone_guide}</code> változó helyére.
+        Szerkeszd és mentsd el a változtatásokat.
+      </div>
+
+      <textarea class="tone-guide-textarea" id="toneGuideTextarea" placeholder="Tone guide szövege..."></textarea>
+
+      <div class="mt-12">
+        <button class="btn btn-primary btn-sm" onclick="saveToneGuide()">
+          <span>💾</span> Tone Guide mentése
+        </button>
       </div>
 
     </div>
   </div>
 
-  <!-- TONE GUIDE SZERKESZTŐ (accordion) -->
-  <div class="card prompt-card" id="toneGuideCard">
-    <button class="prompt-accordion-btn" id="toneGuideAccordionBtn" onclick="toggleToneGuidePanel()">
-      <span>📝 Tone Guide szerkesztése</span>
-      <span class="accordion-arrow" id="toneGuideAccordionArrow">▼</span>
-    </button>
+</div><!-- /app-wrapper -->
 
-    <div class="prompt-panel" id="toneGuidePanel" style="display:none">
-      <div class="prompt-hint tone-guide-hint">
-        A Tone Guide a stílus és hangnem útmutató. A generáló promptba automatikusan beillesztésre kerül a <code>{tone_guide}</code> változó helyére. Mentéskor felülírja a <code>prompts/tone_guide.txt</code> fájlt.
-      </div>
-      <div class="prompt-header-row">
-        <h3 class="prompt-title">Tone Guide szövege</h3>
-        <div class="prompt-actions">
-          <button class="btn btn-secondary btn-sm" id="editToneGuideBtn" onclick="toggleToneGuideEdit()">
-            ✏ Szerkesztés
-          </button>
-          <button class="btn btn-primary btn-sm" id="saveToneGuideBtn" onclick="saveToneGuide()" style="display:none">
-            💾 Mentés
-          </button>
-        </div>
-      </div>
-      <textarea class="prompt-textarea tone-guide-textarea" id="toneGuideTextarea" readonly></textarea>
+<!-- VÁLTOZÓK MODAL -->
+<div class="modal-overlay" id="variablesModal" onclick="closeVariablesModal(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Elérhető változók</h3>
+      <button class="modal-close" onclick="closeVariablesModal()">✕</button>
+    </div>
+    <div class="modal-body" id="variablesModalBody">
+      <p style="color:#718096">Betöltés...</p>
     </div>
   </div>
-
 </div>
 
-<!-- TOAST ÉRTESÍTÉSEK -->
+<!-- TOAST KONTÉNER -->
 <div class="toast-container" id="toastContainer"></div>
 
 <script src="/static/app.js"></script>
