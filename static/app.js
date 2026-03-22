@@ -227,6 +227,7 @@ async function startGeneration() {
   }
 
   const model = document.getElementById('modelSelect').value;
+  const concurrency = parseInt(document.getElementById('concurrencySlider').value) || 5;
 
   // Reset státuszok
   tableData.forEach(row => {
@@ -241,6 +242,9 @@ async function startGeneration() {
 
   document.getElementById('progressSection').classList.remove('hidden');
   document.getElementById('downloadSection').classList.remove('visible');
+  // Összefoglaló elrejtése az új futás előtt
+  const summaryEl = document.getElementById('generationSummary');
+  if (summaryEl) summaryEl.classList.add('hidden');
 
   updateProgress(0, tableData.length);
 
@@ -248,7 +252,7 @@ async function startGeneration() {
     const res = await fetch('/start-generation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rows: tableData, model })
+      body: JSON.stringify({ rows: tableData, model, concurrency })
     });
     const data = await res.json();
 
@@ -311,6 +315,25 @@ function listenToSSE(jobId) {
       const dlSection = document.getElementById('downloadSection');
       const dlBtn = document.getElementById('downloadBtn');
       const dlZipBtn = document.getElementById('downloadZipBtn');
+
+      // Összefoglaló megjelenítése
+      const summaryEl = document.getElementById('generationSummary');
+      if (summaryEl) {
+        const elapsed = event.elapsed_seconds || 0;
+        const concurrencyUsed = event.concurrency || 1;
+        const doneRows = tableData.filter(r => r.status === 'done').length;
+        const errorRows = tableData.filter(r => r.status === 'error').length;
+        const mins = Math.floor(elapsed / 60);
+        const secs = elapsed % 60;
+        const timeStr = mins > 0 ? `${mins} perc ${secs} mp` : `${secs} mp`;
+        summaryEl.innerHTML = `
+          <div class="summary-stat"><span class="summary-icon">✅</span> <strong>${doneRows}</strong> cikk sikeresen generálva</div>
+          ${errorRows > 0 ? `<div class="summary-stat"><span class="summary-icon">❌</span> <strong>${errorRows}</strong> cikk hibával végződött</div>` : ''}
+          <div class="summary-stat"><span class="summary-icon">⏱️</span> <strong>${timeStr}</strong> alatt készült</div>
+          <div class="summary-stat"><span class="summary-icon">⚡</span> <strong>${concurrencyUsed}</strong> párhuzamos szálon futott</div>
+        `;
+        summaryEl.classList.remove('hidden');
+      }
 
       if (event.download_url) {
         dlBtn.href = event.download_url;

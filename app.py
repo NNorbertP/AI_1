@@ -8,6 +8,7 @@ import glob
 import zipfile
 from queue import Queue
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from flask import Flask, request, jsonify, render_template, Response, send_file
 from werkzeug.utils import secure_filename
@@ -63,8 +64,12 @@ FORBIDDEN_PHRASES = [
 
 # A memóriában tartott job esemény sorok az SSE-hez
 job_events = {}
-# Lock a párhuzamos generálás megakadályozására
+# Lock a párhuzamos generálás megakadályozására (csak egy job futhat egyszerre)
 generation_lock = threading.Lock()
+# Lock a job fájl thread-safe írásához
+job_file_lock = threading.Lock()
+# Lock az SSE queue hozzáféréshez
+sse_lock = threading.Lock()
 
 # ==========================================
 # JOB KEZELÉS (PERZISZTENS)
@@ -74,8 +79,18 @@ def get_job_path(job_id):
 
 def save_job(job_data):
     job_id = job_data['job_id']
-    with open(get_job_path(job_id), 'w', encoding='utf-8') as f:
-        json.dump(job_data, f, ensure_ascii=False, indent=2)
+    with job_file_lock:
+        with open(get_job_path(job_id), 'w', encoding='utf-8') as f:
+            json.dump(job_data, f, ensure_ascii=False, indent=2)
+
+def load_job_safe(job_id):
+    """Thread-safe job betöltés."""
+    with job_file_lock:
+        path = get_job_path(job_id)
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    return None
 
 def load_job(job_id):
     path = get_job_path(job_id)
@@ -97,8 +112,9 @@ def get_all_jobs():
     return jobs
 
 def emit_event(job_id, event_data):
-    if job_id in job_events:
-        job_events[job_id].put(event_data)
+    with sse_lock:
+        if job_id in job_events:
+            job_events[job_id].put(event_data)
 
 # ==========================================
 # TONE GUIDE ÉS PIPELINE FÁJLRENDSZER
@@ -479,25 +495,29 @@ def call_llm(prompt_text, model, temperature=0.7):
                 return f"API Hiba: {error_str}"
 
 def generate_single_article(row_data, job_id, row_index, model):
-    job = load_job(job_id)
-    if not job:
+    if not load_job(job_id):
         return None
 
     def update_status(status, message):
-        # Update in-memory job state and save to file
-        job = load_job(job_id)
-        job['rows'][row_index]['status'] = status
-        if message:
-            job['rows'][row_index]['message'] = message
+        """Thread-safe állapot frissítés: betölt, módosít, ment."""
+        with job_file_lock:
+            path = get_job_path(job_id)
+            if not os.path.exists(path):
+                return
+            with open(path, 'r', encoding='utf-8') as f:
+                job_local = json.load(f)
+            job_local['rows'][row_index]['status'] = status
+            if message:
+                job_local['rows'][row_index]['message'] = message
+            if 'steps_log' not in job_local['rows'][row_index]:
+                job_local['rows'][row_index]['steps_log'] = []
+            job_local['rows'][row_index]['steps_log'].append(
+                f"{datetime.now().strftime('%H:%M:%S')} - {status}: {message}"
+            )
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(job_local, f, ensure_ascii=False, indent=2)
         
-        # Add to steps_log
-        if 'steps_log' not in job['rows'][row_index]:
-            job['rows'][row_index]['steps_log'] = []
-        job['rows'][row_index]['steps_log'].append(f"{datetime.now().strftime('%H:%M:%S')} - {status}: {message}")
-        
-        save_job(job)
-        
-        # Emit event to frontend
+        # Emit event to frontend (thread-safe via sse_lock)
         emit_event(job_id, {
             'type': 'row_update',
             'row_index': row_index,
@@ -511,9 +531,15 @@ def generate_single_article(row_data, job_id, row_index, model):
     
     if not ceg_url or not cikk_cim:
         update_status('Hiba', 'Hiányzó cég URL vagy cikk cím')
-        job = load_job(job_id)
-        job['rows'][row_index]['status'] = 'error'
-        save_job(job)
+        # Thread-safe error state update
+        with job_file_lock:
+            path = get_job_path(job_id)
+            if os.path.exists(path):
+                with open(path, 'r', encoding='utf-8') as f:
+                    j = json.load(f)
+                j['rows'][row_index]['status'] = 'error'
+                with open(path, 'w', encoding='utf-8') as f:
+                    json.dump(j, f, ensure_ascii=False, indent=2)
         return None
 
     # Változók előkészítése
@@ -558,9 +584,14 @@ def generate_single_article(row_data, job_id, row_index, model):
 
     if not steps:
         update_status('Hiba', 'Nincs engedélyezett lépés a pipeline-ban!')
-        job = load_job(job_id)
-        job['rows'][row_index]['status'] = 'error'
-        save_job(job)
+        with job_file_lock:
+            path = get_job_path(job_id)
+            if os.path.exists(path):
+                with open(path, 'r', encoding='utf-8') as f:
+                    j = json.load(f)
+                j['rows'][row_index]['status'] = 'error'
+                with open(path, 'w', encoding='utf-8') as f:
+                    json.dump(j, f, ensure_ascii=False, indent=2)
         return None
 
     update_status('Folyamatban', 'Pipeline indítása...')
@@ -575,9 +606,14 @@ def generate_single_article(row_data, job_id, row_index, model):
 
         if output.startswith("API Hiba:"):
             update_status('Hiba', f'{step_name}: {output}')
-            job = load_job(job_id)
-            job['rows'][row_index]['status'] = 'error'
-            save_job(job)
+            with job_file_lock:
+                path = get_job_path(job_id)
+                if os.path.exists(path):
+                    with open(path, 'r', encoding='utf-8') as f:
+                        j = json.load(f)
+                    j['rows'][row_index]['status'] = 'error'
+                    with open(path, 'w', encoding='utf-8') as f:
+                        json.dump(j, f, ensure_ascii=False, indent=2)
             return None
 
         # Változók frissítése a következő lépésekhez
@@ -608,12 +644,17 @@ def generate_single_article(row_data, job_id, row_index, model):
     else:
         update_status('Kész', f'Sikeres generálás ({word_count} szó)')
 
-    # Véglegesítés a job fájlban
-    job = load_job(job_id)
-    job['rows'][row_index]['status'] = 'done'
-    job['rows'][row_index]['article'] = final_article
-    job['rows'][row_index]['completed_at'] = datetime.now().isoformat()
-    save_job(job)
+    # Véglegesítés a job fájlban (thread-safe)
+    with job_file_lock:
+        path = get_job_path(job_id)
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as f:
+                j = json.load(f)
+            j['rows'][row_index]['status'] = 'done'
+            j['rows'][row_index]['article'] = final_article
+            j['rows'][row_index]['completed_at'] = datetime.now().isoformat()
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(j, f, ensure_ascii=False, indent=2)
 
     return final_article
 
@@ -677,14 +718,70 @@ def create_output_files(job_id):
         job['zip_url'] = f"/download/{zip_filename}"
         save_job(job)
 
+def process_row_parallel(job_id, idx, row, model, completed_counter, completed_lock, total_rows):
+    """Egy sor feldolgozása párhuzamos módban."""
+    # Kihagyjuk az üres sorokat
+    if not row.get('ceg_url') and not row.get('cikk_cim'):
+        with job_file_lock:
+            path = get_job_path(job_id)
+            if os.path.exists(path):
+                with open(path, 'r', encoding='utf-8') as f:
+                    j = json.load(f)
+                j['rows'][idx]['status'] = 'done'
+                j['rows'][idx]['message'] = 'Üres sor kihagyva'
+                with open(path, 'w', encoding='utf-8') as f:
+                    json.dump(j, f, ensure_ascii=False, indent=2)
+        emit_event(job_id, {
+            'type': 'row_update',
+            'row_index': idx,
+            'status': 'done',
+            'message': 'Üres sor kihagyva'
+        })
+    else:
+        # Állapot: futóra állítás
+        with job_file_lock:
+            path = get_job_path(job_id)
+            if os.path.exists(path):
+                with open(path, 'r', encoding='utf-8') as f:
+                    j = json.load(f)
+                j['rows'][idx]['status'] = 'running'
+                with open(path, 'w', encoding='utf-8') as f:
+                    json.dump(j, f, ensure_ascii=False, indent=2)
+        
+        generate_single_article(row, job_id, idx, model)
+    
+    # Befejezett számláló frissítése (thread-safe)
+    with completed_lock:
+        completed_counter[0] += 1
+        completed = completed_counter[0]
+    
+    # Progress esemény küldése
+    emit_event(job_id, {
+        'type': 'progress',
+        'completed': completed,
+        'total': total_rows
+    })
+    
+    # Thread-safe completed_rows frissítése a job fájlban
+    with job_file_lock:
+        path = get_job_path(job_id)
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as f:
+                j = json.load(f)
+            j['completed_rows'] = completed
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(j, f, ensure_ascii=False, indent=2)
+
+
 def generation_worker(job_id):
-    # Lockoljuk a futást
+    # Lockoljuk a futást (csak egy job futhat egyszerre)
     acquired = generation_lock.acquire(blocking=False)
     if not acquired:
         job = load_job(job_id)
-        job['status'] = 'error'
-        job['error_message'] = 'Már fut egy generálás. Kérlek várj.'
-        save_job(job)
+        if job:
+            job['status'] = 'error'
+            job['error_message'] = 'Már fut egy generálás. Kérlek várj.'
+            save_job(job)
         emit_event(job_id, {'type': 'error', 'message': 'Már fut egy generálás.'})
         return
         
@@ -698,57 +795,58 @@ def generation_worker(job_id):
         
         rows = job['rows']
         model = job.get('model', DEFAULT_MODEL)
-
-        for idx, row in enumerate(rows):
-            # Csak a nem befejezett sorokat dolgozzuk fel
-            if row.get('status') == 'done':
-                continue
-                
-            # Kihagyjuk az üres sorokat
-            if not row.get('ceg_url') and not row.get('cikk_cim'):
-                job = load_job(job_id)
-                job['rows'][idx]['status'] = 'done'
-                job['rows'][idx]['message'] = 'Üres sor kihagyva'
-                save_job(job)
-                
-                job['completed_rows'] += 1
-                save_job(job)
-                emit_event(job_id, {
-                    'type': 'progress',
-                    'completed': job['completed_rows'],
-                    'total': job['total_rows']
-                })
-                continue
-
-            # Állapot frissítés futóra
-            job = load_job(job_id)
-            job['rows'][idx]['status'] = 'running'
-            save_job(job)
+        concurrency = job.get('concurrency', 5)
+        total_rows = job['total_rows']
+        start_time = time.time()
+        
+        # Csak a nem befejezett sorokat dolgozzuk fel
+        pending_rows = [(idx, row) for idx, row in enumerate(rows) if row.get('status') != 'done']
+        
+        # Számláló a befejezett sorokhoz (thread-safe)
+        completed_counter = [job.get('completed_rows', 0)]  # list-ben, hogy mutható legyen
+        completed_lock = threading.Lock()
+        
+        # Párhuzamos feldolgozás ThreadPoolExecutor-ral
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            futures = {
+                executor.submit(
+                    process_row_parallel,
+                    job_id, idx, row, model,
+                    completed_counter, completed_lock, total_rows
+                ): (idx, row)
+                for idx, row in pending_rows
+            }
             
-            generate_single_article(row, job_id, idx, model)
+            # Várunk minden future-re (hibák logolása)
+            for future in as_completed(futures):
+                idx, row = futures[future]
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"Hiba a {idx}. sor feldolgozásakor: {e}")
+                    emit_event(job_id, {
+                        'type': 'row_update',
+                        'row_index': idx,
+                        'status': 'error',
+                        'message': f'Rendszerhiba: {str(e)}'
+                    })
 
-            # Újratöltjük a jobot, hogy megnézzük a végső státuszt
-            job = load_job(job_id)
-            job['completed_rows'] += 1
-            save_job(job)
-            
-            emit_event(job_id, {
-                'type': 'progress',
-                'completed': job['completed_rows'],
-                'total': job['total_rows']
-            })
-
-        # Fájlok generálása
+        # Fájlok generálása (az összes sor kész)
         create_output_files(job_id)
 
+        elapsed = round(time.time() - start_time)
         job = load_job(job_id)
         job['status'] = 'done'
+        job['elapsed_seconds'] = elapsed
         save_job(job)
         
         emit_event(job_id, {
             'type': 'complete',
             'download_url': job.get('download_url', None),
-            'zip_url': job.get('zip_url', None)
+            'zip_url': job.get('zip_url', None),
+            'elapsed_seconds': elapsed,
+            'concurrency': concurrency,
+            'total_rows': total_rows
         })
         emit_event(job_id, None)  # Stream vége
         
@@ -823,6 +921,8 @@ def start_generation():
     data = request.json
     rows = data.get('rows', [])
     model = data.get('model', DEFAULT_MODEL)
+    concurrency = int(data.get('concurrency', 5))
+    concurrency = max(1, min(20, concurrency))  # 1-20 között
 
     if model not in AVAILABLE_MODELS:
         model = DEFAULT_MODEL
@@ -841,6 +941,7 @@ def start_generation():
         'status': 'pending',
         'started_at': datetime.now().isoformat(),
         'model': model,
+        'concurrency': concurrency,
         'total_rows': len(rows),
         'completed_rows': 0,
         'rows': rows

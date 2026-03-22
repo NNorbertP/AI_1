@@ -104,6 +104,17 @@
           </select>
         </div>
 
+        <div class="concurrency-group">
+          <label for="concurrencySlider">Párhuzamos cikkek száma: <strong id="concurrencyValue">5</strong></label>
+          <input type="range" id="concurrencySlider" min="1" max="20" value="5"
+            oninput="document.getElementById('concurrencyValue').textContent = this.value"
+            class="concurrency-slider">
+          <div class="concurrency-labels">
+            <span>1 (szekvenciális)</span>
+            <span>20 (max)</span>
+          </div>
+        </div>
+
         <button class="btn btn-primary btn-lg" id="startBtn" onclick="startGeneration()" disabled>
           <span>▶</span> Generálás indítása
         </button>
@@ -127,6 +138,9 @@
 
       <!-- Letöltés -->
       <div class="download-section" id="downloadSection">
+        <div id="generationSummary" class="generation-summary hidden">
+          <!-- Dinamikusan töltődik -->
+        </div>
         <p>✅ A generálás befejeződött! A Word dokumentum letölthető.</p>
         <div class="download-buttons">
           <a class="btn btn-success btn-lg" id="downloadBtn" href="#" download>
